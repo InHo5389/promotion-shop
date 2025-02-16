@@ -33,7 +33,7 @@ public class UserController {
      * 정상적인 경우 X-USER-ID를 헤더로 보냄
      */
     @GetMapping("/me")
-    public ResponseEntity<?> getProfile(@Valid @RequestHeader("X-USER-ID") Long userId) {
+    public ResponseEntity<?> getProfile(@RequestHeader("X-USER-ID") Long userId) {
         User user = userService.getUserById(userId);
 
         return ResponseEntity.ok(UserResponse.Response.from(user));

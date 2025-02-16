@@ -21,7 +21,7 @@ public class UserResponse {
         private String name;
         private String token;
         private LocalDateTime createdAt;
-        private LocalDateTime updatedAt;
+        private LocalDateTime modifiedAt;
 
         public static Login from(User user,String token){
             return Login.builder()
@@ -30,7 +30,7 @@ public class UserResponse {
                     .name(user.getName())
                     .token(token)
                     .createdAt(user.getCreatedAt())
-                    .updatedAt(user.getUpdatedAt())
+                    .modifiedAt(user.getModifiedAt())
                     .build();
         }
     }
@@ -44,15 +44,15 @@ public class UserResponse {
         private String email;
         private String name;
         private LocalDateTime createdAt;
-        private LocalDateTime updatedAt;
+        private LocalDateTime modifiedAt;
 
-        public static Login from(User user){
-            return Login.builder()
+        public static Response from(User user){
+            return Response.builder()
                     .id(user.getId())
                     .email(user.getEmail())
                     .name(user.getName())
                     .createdAt(user.getCreatedAt())
-                    .updatedAt(user.getUpdatedAt())
+                    .modifiedAt(user.getModifiedAt())
                     .build();
         }
     }
