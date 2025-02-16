@@ -26,7 +26,9 @@ public class UserService {
             throw new CustomGlobalException(ErrorType.ALREADY_EXIST_USER);
         }
 
-        return User.create(email, passwordEncoder.encode(password), name);
+        User user = User.create(email, passwordEncoder.encode(password), name);
+        User savedUser = userRepository.save(user);
+        return savedUser;
     }
 
     public User authenticate(String email, String password) {
