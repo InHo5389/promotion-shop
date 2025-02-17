@@ -62,12 +62,14 @@ public class UserResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Token{
+        private Long id;
         private String email;
         private boolean valid;
         private String role;
 
         public static Token from(Claims claims){
             return Token.builder()
+                    .id(claims.get("id",Long.class))
                     .email(claims.getSubject())
                     .valid(true)
                     .role(claims.get("role",String.class))
