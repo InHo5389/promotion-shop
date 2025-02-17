@@ -28,6 +28,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim("role", "USER")
+                .claim("id", user.getId())
                 .issuedAt(new Date(currentTimeMillis))
                 .expiration(new Date(currentTimeMillis + 3600000)) // 1시간
                 .signWith(Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8)))
