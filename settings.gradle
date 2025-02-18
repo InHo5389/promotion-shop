@@ -1,5 +1,6 @@
 rootProject.name = 'promotion-shop'
 
+include 'api-gateway'
 include 'discovery-service'
 include 'user-service'
-include 'api-gateway'
+include 'coupon-service'
