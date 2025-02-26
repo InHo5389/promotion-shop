@@ -35,25 +35,3 @@ out/
 
 ### VS Code ###
 .vscode/
-
-### yml ###
-*.yml
-
-# MySQL
-*.sock
-Infrastructure/db/mysql/data/
-Infrastructure/data
-
-# Temporary files
-*.tmp
-*_tmp
-.tmp
-*_redo*
-
-Infrastructure/db/mysql/data/
-*.sdi
-*.ibd
-*.pem
-ibdata*
-ib_logfile*
-mysql-bin.*
