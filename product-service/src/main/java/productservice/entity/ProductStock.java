@@ -23,4 +23,15 @@ public class ProductStock extends BaseEntity {
     private ProductOption productOption;
 
     private Integer quantity;
+
+    public static ProductStock create(ProductOption productOption, Integer quantity) {
+        ProductStock productStock = new ProductStock();
+        productStock.productOption = productOption;
+        productStock.quantity = quantity;
+        return productStock;
+    }
+
+    public void updateQuantity(Integer quantity) {
+        this.quantity = quantity;
+    }
 }
