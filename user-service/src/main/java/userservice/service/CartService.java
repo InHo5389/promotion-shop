@@ -15,6 +15,7 @@ import userservice.service.dto.CartRequest;
 import userservice.service.dto.CartResponse;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -79,6 +80,10 @@ public class CartService {
         // 제품 정보 확인
         ProductResponse product = productClient.getProduct(request.getProductId().toString());
 
+        if (!product.getStatus().equals("ACTIVE")) {
+            throw new CustomGlobalException(ErrorType.PRODUCT_NOT_SELL);
+        }
+
         // 옵션 정보 확인
         ProductResponse.ProductOptionDto option = findProductOption(product, request.getProductOptionId());
 
@@ -109,7 +114,7 @@ public class CartService {
         return cartItem;
     }
 
-    public CartItem updateOption(Long userId, CartRequest.Update request) {
+    public CartItem updateOption(Long userId, Long originalProductId, Long originalOptionId, CartRequest.Update request) {
         // 제품 정보 확인
         ProductResponse product = productClient.getProduct(request.getProductId().toString());
 
@@ -124,31 +129,41 @@ public class CartService {
         // 현재 장바구니 상태 확인
         Map<String, CartItem> cartItemMap = cartRepository.getCart(userId);
 
-        // 도메인 객체 생성
-        Cart cart = Cart.fromCartItemMap(userId, cartItemMap);
-
-        // 아이템 존재 확인
-        if (!cart.hasItem(request.getProductId(), request.getProductOptionId())) {
+        // 원본 아이템 확인
+        String originalItemKey = originalProductId + "::" + originalOptionId;
+        if (!cartItemMap.containsKey(originalItemKey)) {
             throw new CustomGlobalException(ErrorType.NOT_FOUND_CART_PRODUCT);
         }
 
+        // 수량이 0 이하면 제품 삭제 후 종료
         if (request.getQuantity() <= 0) {
-            // 수량이 0 이하면 제품 삭제
-            cart.removeItem(request.getProductId(), request.getProductOptionId());
-            cartRepository.removeCartItem(userId, request.getProductId(), request.getProductOptionId());
+            cartRepository.removeCartItem(userId, originalProductId, originalOptionId);
             return null;
-        } else {
-            // 도메인 로직 수행 - 아이템 수량 업데이트
-            CartItem cartItem = cart.addOrUpdateItem(
-                    request.getProductId(),
-                    request.getProductOptionId(),
-                    request.getQuantity()
-            );
-
-            // 저장소에 저장
-            cartRepository.saveCartItem(userId, request.getProductId(), request.getProductOptionId(), cartItem);
-            return cartItem;
         }
+
+
+        // 변경하려는 옵션이 이미 장바구니에 있는지 확인
+        String newItemKey = request.getProductId() + "::" + request.getProductOptionId();
+        if (!originalItemKey.equals(newItemKey) && cartItemMap.containsKey(newItemKey)) {
+            CartItem existingItem = cartItemMap.get(newItemKey);
+            if (existingItem.getQuantity() == request.getQuantity()) {
+                throw new CustomGlobalException(ErrorType.ALREADY_IN_CART);
+            }
+        }
+
+        // 원본 아이템 제거
+        cartRepository.removeCartItem(userId, originalProductId, originalOptionId);
+
+        // 새 아이템 생성 및 저장
+        CartItem cartItem = CartItem.builder()
+                .productId(request.getProductId())
+                .optionId(request.getProductOptionId())
+                .quantity(request.getQuantity())
+                .addedAt(LocalDateTime.now())
+                .build();
+
+        cartRepository.saveCartItem(userId, request.getProductId(), request.getProductOptionId(), cartItem);
+        return cartItem;
     }
 
     public void remove(Long userId, CartRequest.Remove request) {
