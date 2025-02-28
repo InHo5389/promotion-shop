@@ -28,10 +28,13 @@ public class CartController {
         return cartService.addToCart(userId, request);
     }
 
-    @PutMapping
-    public CartItem updateOption(@Valid @RequestBody CartRequest.Update request) {
+    @PutMapping("/product/{originalProductId}/option/{originalOptionId}")
+    public CartItem updateOption(
+            @Valid @RequestBody CartRequest.Update request,
+            @PathVariable Long originalProductId,
+            @PathVariable Long originalOptionId) {
         Long userId = UserIdInterceptor.getCurrentUserId();
-        return cartService.updateOption(userId, request);
+        return cartService.updateOption(userId, originalProductId, originalOptionId, request);
     }
 
     @DeleteMapping
