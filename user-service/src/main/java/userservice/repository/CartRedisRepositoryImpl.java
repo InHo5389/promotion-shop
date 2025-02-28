@@ -8,7 +8,7 @@ import org.springframework.stereotype.Repository;
 import userservice.common.exception.CustomGlobalException;
 import userservice.common.exception.ErrorType;
 import userservice.service.CartRepository;
-import userservice.service.dto.CartItemRedis;
+import userservice.service.domain.CartItem;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,37 +18,39 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class CartRedisRepositoryImpl implements CartRepository {
 
-    private final RedisTemplate<String,String> redisTemplate;
+    private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
 
     private static final String KEY_FORMAT = "cart::%d";
 
+
     @Override
-    public Map<String, CartItemRedis> getCartItems(Long userId) {
+    public Map<String, CartItem> getCart(Long userId) {
         String key = generateKey(userId);
         Map<Object, Object> entries = redisTemplate.opsForHash().entries(key);
+        Map<String, CartItem> result = new HashMap<>();
 
-        Map<String, CartItemRedis> result = new HashMap<>();
         for (Map.Entry<Object, Object> entry : entries.entrySet()) {
             try {
-                CartItemRedis cartItem = objectMapper.readValue(entry.getValue().toString(), CartItemRedis.class);
-                result.put(entry.getKey().toString(),cartItem);
-            }catch (JsonProcessingException e){
+                CartItem cartItem = objectMapper.readValue(entry.getValue().toString(), CartItem.class);
+                result.put(entry.getKey().toString(), cartItem);
+            } catch (JsonProcessingException e) {
                 throw new CustomGlobalException(ErrorType.JSON_PARSING_FAILED);
             }
         }
+
         return result;
     }
 
     @Override
-    public void saveCartItem(Long userId, Long productId, Long optionId, CartItemRedis item) {
+    public void saveCartItem(Long userId, Long productId, Long optionId, CartItem item) {
         String key = generateKey(userId);
         String itemKey = generateItemKey(productId, optionId);
 
         try {
             String itemJson = objectMapper.writeValueAsString(item);
-            redisTemplate.opsForHash().put(key,itemKey,itemJson);
-        }catch (JsonProcessingException e){
+            redisTemplate.opsForHash().put(key, itemKey, itemJson);
+        } catch (JsonProcessingException e) {
             throw new CustomGlobalException(ErrorType.JSON_PARSING_FAILED);
         }
     }
@@ -61,18 +63,12 @@ public class CartRedisRepositoryImpl implements CartRepository {
     }
 
     @Override
-    public void clearCart(Long userId) {
-        String key = generateKey(userId);
-        redisTemplate.delete(key);
-    }
-
-    @Override
     public void setCartExpire(Long userId, long timeout, TimeUnit unit) {
         String key = generateKey(userId);
         redisTemplate.expire(key, timeout, unit);
     }
 
-    private String generateKey(Long userId){
+    private String generateKey(Long userId) {
         return KEY_FORMAT.formatted(userId);
     }
 

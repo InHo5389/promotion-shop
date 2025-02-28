@@ -8,13 +8,13 @@ import userservice.common.exception.CustomGlobalException;
 import userservice.common.exception.ErrorType;
 import userservice.entity.User;
 import userservice.repository.UserRepository;
-import userservice.service.dto.CartItemRedis;
+import userservice.service.domain.Cart;
+import userservice.service.domain.CartItem;
 import userservice.service.dto.CartProductResponse;
 import userservice.service.dto.CartRequest;
 import userservice.service.dto.CartResponse;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -29,26 +29,30 @@ public class CartService {
     private final CartRepository cartRepository;
     private final ProductClient productClient;
 
+    private static final int CART_EXPIRY_DAYS = 7;
+
     public CartResponse getCart(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_USER));
 
-        Map<String, CartItemRedis> cartItemMap = cartRepository.getCartItems(userId);
+        Map<String, CartItem> cartItemMap = cartRepository.getCart(userId);
 
-        if (cartItemMap.isEmpty()) {
+        // 도메인 객체 생성
+        Cart cart = Cart.fromCartItemMap(userId, cartItemMap);
+
+        if (cart.isEmpty()) {
             return CartResponse.builder()
                     .userId(userId)
+                    .username(user.getName())
                     .items(Collections.emptyList())
                     .totalPrice(BigDecimal.ZERO)
                     .build();
         }
 
-        List<CartProductResponse> items = new ArrayList<>();
+        List<CartProductResponse> itemResponses = new ArrayList<>();
         BigDecimal totalPrice = BigDecimal.ZERO;
 
-        for (Map.Entry<String, CartItemRedis> entry : cartItemMap.entrySet()) {
-            CartItemRedis item = entry.getValue();
-
+        for (CartItem item : cart.getItems()) {
             // 제품 정보 가져오기
             ProductResponse product = productClient.getProduct(item.getProductId().toString());
 
@@ -56,8 +60,8 @@ public class CartService {
             ProductResponse.ProductOptionDto option = findProductOption(product, item.getOptionId());
 
             // 장바구니 아이템 응답 생성
-            CartProductResponse itemResponse = CartProductResponse.from(item, product, option);
-            items.add(itemResponse);
+            CartProductResponse itemResponse = createCartProductResponse(item, product, option);
+            itemResponses.add(itemResponse);
 
             // 총 가격 계산
             totalPrice = totalPrice.add(itemResponse.getTotalPrice());
@@ -66,13 +70,12 @@ public class CartService {
         return CartResponse.builder()
                 .userId(userId)
                 .username(user.getName())
-                .items(items)
+                .items(itemResponses)
                 .totalPrice(totalPrice)
                 .build();
     }
 
-    // 장바구니에 상품 추가
-    public CartItemRedis addToCart(Long userId, CartRequest.Add request) {
+    public CartItem addToCart(Long userId, CartRequest.Add request) {
         // 제품 정보 확인
         ProductResponse product = productClient.getProduct(request.getProductId().toString());
 
@@ -85,38 +88,83 @@ public class CartService {
         }
 
         // 현재 장바구니 상태 확인
-        Map<String, CartItemRedis> cartItems = cartRepository.getCartItems(userId);
-        String itemKey = request.getProductId() + "::" + request.getProductOptionId();
-        CartItemRedis cartItem = cartItems.get(itemKey);
+        Map<String, CartItem> cartItemMap = cartRepository.getCart(userId);
 
-        if (cartItem != null) {
-            if (request.getQuantity() == cartItem.getQuantity()){
-                throw new CustomGlobalException(ErrorType.ALREADY_IN_CART);
-            }else {
-                // 수량이 1보다 크면 수량 업데이트
-                cartItem.setQuantity(request.getQuantity());
-                cartItem.setAddedAt(LocalDateTime.now());
-            }
-        } else {
-            // 새 아이템 추가
-            cartItem = CartItemRedis.builder()
-                    .productId(request.getProductId())
-                    .optionId(request.getProductOptionId())
-                    .quantity(request.getQuantity())
-                    .addedAt(LocalDateTime.now())
-                    .build();
-        }
+        // 도메인 객체 생성
+        Cart cart = Cart.fromCartItemMap(userId, cartItemMap);
 
-        // Redis에 저장
+        // 도메인 로직 수행 - 아이템 추가 또는 업데이트
+        CartItem cartItem = cart.addOrUpdateItem(
+                request.getProductId(),
+                request.getProductOptionId(),
+                request.getQuantity()
+        );
+
+        // 저장소에 저장 (인프라스트럭처 레이어와의 상호작용)
         cartRepository.saveCartItem(userId, request.getProductId(), request.getProductOptionId(), cartItem);
 
-        // 장바구니 만료 설정 - 7일
-        cartRepository.setCartExpire(userId, 7, TimeUnit.DAYS);
+        // 장바구니 만료 설정
+        cartRepository.setCartExpire(userId, CART_EXPIRY_DAYS, TimeUnit.DAYS);
 
         return cartItem;
     }
 
-    // 제품에서 해당 옵션을 찾는 메서드
+    public CartItem updateOption(Long userId, CartRequest.Update request) {
+        // 제품 정보 확인
+        ProductResponse product = productClient.getProduct(request.getProductId().toString());
+
+        // 수량이 0보다 큰 경우에만 재고 체크
+        if (request.getQuantity() > 0) {
+            ProductResponse.ProductOptionDto option = findProductOption(product, request.getProductOptionId());
+            if (option.getStockQuantity() < request.getQuantity()) {
+                throw new CustomGlobalException(ErrorType.NOT_ENOUGH_STOCK);
+            }
+        }
+
+        // 현재 장바구니 상태 확인
+        Map<String, CartItem> cartItemMap = cartRepository.getCart(userId);
+
+        // 도메인 객체 생성
+        Cart cart = Cart.fromCartItemMap(userId, cartItemMap);
+
+        // 아이템 존재 확인
+        if (!cart.hasItem(request.getProductId(), request.getProductOptionId())) {
+            throw new CustomGlobalException(ErrorType.NOT_FOUND_CART_PRODUCT);
+        }
+
+        if (request.getQuantity() <= 0) {
+            // 수량이 0 이하면 제품 삭제
+            cart.removeItem(request.getProductId(), request.getProductOptionId());
+            cartRepository.removeCartItem(userId, request.getProductId(), request.getProductOptionId());
+            return null;
+        } else {
+            // 도메인 로직 수행 - 아이템 수량 업데이트
+            CartItem cartItem = cart.addOrUpdateItem(
+                    request.getProductId(),
+                    request.getProductOptionId(),
+                    request.getQuantity()
+            );
+
+            // 저장소에 저장
+            cartRepository.saveCartItem(userId, request.getProductId(), request.getProductOptionId(), cartItem);
+            return cartItem;
+        }
+    }
+
+    public void remove(Long userId, CartRequest.Remove request) {
+        // 현재 장바구니 상태 확인
+        Map<String, CartItem> cartItemMap = cartRepository.getCart(userId);
+
+        // 도메인 객체 생성
+        Cart cart = Cart.fromCartItemMap(userId, cartItemMap);
+
+        // 도메인 로직 수행 - 아이템 존재 확인 및 예외처리
+        cart.removeItem(request.getProductId(), request.getProductOptionId());
+
+        // 저장소에서 삭제
+        cartRepository.removeCartItem(userId, request.getProductId(), request.getProductOptionId());
+    }
+
     private ProductResponse.ProductOptionDto findProductOption(ProductResponse product, Long optionId) {
         return product.getOptions().stream()
                 .filter(option -> option.getId().equals(optionId))
@@ -124,46 +172,21 @@ public class CartService {
                 .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT_OPTION));
     }
 
-    public CartItemRedis updateOption(Long userId, CartRequest.Update request) {
-        // 제품 옵션 정보 확인 및 재고 체크
-        ProductResponse product = productClient.getProduct(request.getProductId().toString());
-        ProductResponse.ProductOptionDto option = findProductOption(product, request.getProductOptionId());
+    private CartProductResponse createCartProductResponse(CartItem item, ProductResponse product, ProductResponse.ProductOptionDto option) {
+        BigDecimal itemPrice = product.getPrice();
+        BigDecimal totalPrice = itemPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
 
-        if (request.getQuantity() > 0 && option.getStockQuantity() < request.getQuantity()) {
-            throw new CustomGlobalException(ErrorType.NOT_ENOUGH_STOCK);
-        }
-
-        // 현재 장바구니 상태 확인
-        Map<String, CartItemRedis> cartItems = cartRepository.getCartItems(userId);
-        String itemKey = request.getProductId() + "::" + request.getProductOptionId();
-        CartItemRedis cartItem = cartItems.get(itemKey);
-
-        if (cartItem == null) {
-            throw new CustomGlobalException(ErrorType.NOT_FOUND_CART_PRODUCT);
-        }
-
-        if (request.getQuantity() <= 0) {
-            // 수량이 0 이하면 제품 삭제
-            cartRepository.removeCartItem(userId, request.getProductId(), request.getProductOptionId());
-        } else {
-            // 수량 업데이트
-            cartItem.setQuantity(request.getQuantity());
-            cartItem.setAddedAt(LocalDateTime.now());
-            cartRepository.saveCartItem(userId, request.getProductId(), request.getProductOptionId(), cartItem);
-        }
-        return cartItem;
-    }
-
-    public void remove(Long userId, CartRequest.Remove request) {
-        // 현재 장바구니 상태 확인
-        Map<String, CartItemRedis> cartItems = cartRepository.getCartItems(userId);
-        String itemKey = request.getProductId() + "::" + request.getProductOptionId();
-
-        if (!cartItems.containsKey(itemKey)) {
-            throw new CustomGlobalException(ErrorType.NOT_FOUND_CART_PRODUCT);
-        }
-
-        // 상품 삭제
-        cartRepository.removeCartItem(userId, request.getProductId(), request.getProductOptionId());
+        return CartProductResponse.builder()
+                .productId(item.getProductId())
+                .productName(product.getName())
+                .image(product.getImage())
+                .status(product.getStatus())
+                .optionId(item.getOptionId())
+                .optionSize(option.getSize())
+                .optionColor(option.getColor())
+                .price(itemPrice)
+                .quantity(item.getQuantity())
+                .totalPrice(totalPrice)
+                .build();
     }
 }

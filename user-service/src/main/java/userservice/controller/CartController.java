@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import userservice.common.interceptor.UserIdInterceptor;
 import userservice.service.CartService;
-import userservice.service.dto.CartItemRedis;
+import userservice.service.domain.CartItem;
 import userservice.service.dto.CartRequest;
 import userservice.service.dto.CartResponse;
 
@@ -23,13 +23,13 @@ public class CartController {
     }
 
     @PostMapping
-    public CartItemRedis add(@Valid @RequestBody CartRequest.Add request) {
+    public CartItem add(@Valid @RequestBody CartRequest.Add request) {
         Long userId = UserIdInterceptor.getCurrentUserId();
         return cartService.addToCart(userId, request);
     }
 
     @PutMapping
-    public CartItemRedis updateOption(@Valid @RequestBody CartRequest.Update request) {
+    public CartItem updateOption(@Valid @RequestBody CartRequest.Update request) {
         Long userId = UserIdInterceptor.getCurrentUserId();
         return cartService.updateOption(userId, request);
     }
