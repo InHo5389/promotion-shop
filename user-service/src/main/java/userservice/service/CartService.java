@@ -90,9 +90,13 @@ public class CartService {
         CartItemRedis cartItem = cartItems.get(itemKey);
 
         if (cartItem != null) {
-            // 이미 있으면 수량 업데이트
-            cartItem.setQuantity(cartItem.getQuantity() + request.getQuantity());
-            cartItem.setAddedAt(LocalDateTime.now());
+            if (request.getQuantity() == cartItem.getQuantity()){
+                throw new CustomGlobalException(ErrorType.ALREADY_IN_CART);
+            }else {
+                // 수량이 1보다 크면 수량 업데이트
+                cartItem.setQuantity(request.getQuantity());
+                cartItem.setAddedAt(LocalDateTime.now());
+            }
         } else {
             // 새 아이템 추가
             cartItem = CartItemRedis.builder()

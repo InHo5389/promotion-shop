@@ -39,9 +39,5 @@ public class CartRequest {
 
         @NotNull
         private Long productOptionId;
-
-        @NotNull
-        @Min(1)
-        private Integer quantity;
     }
 }
