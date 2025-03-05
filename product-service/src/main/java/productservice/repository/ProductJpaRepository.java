@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import productservice.entity.Product;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ProductJpaRepository extends JpaRepository<Product, Long> {
@@ -16,4 +17,11 @@ public interface ProductJpaRepository extends JpaRepository<Product, Long> {
             "LEFT JOIN FETCH o.stock " +
             "WHERE p.id = :productId")
     Optional<Product> findByIdWithFetchJoin(@Param("productId") Long productId);
+
+    @Query("SELECT p FROM Product p " +
+            "LEFT JOIN FETCH p.category " +
+            "LEFT JOIN FETCH p.options o " +
+            "LEFT JOIN FETCH o.stock " +
+            "WHERE p.id IN :ids")
+    List<Product> findAllWithCategoryOptionsAndStockByIdIn(@Param("ids") List<Long> ids);
 }

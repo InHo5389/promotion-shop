@@ -16,10 +16,9 @@ public class CartController {
 
     private final CartService cartService;
 
-    @GetMapping
-    public CartResponse getCart() {
-        Long userId = UserIdInterceptor.getCurrentUserId();
-        return cartService.getCart(userId);
+    @GetMapping("/{id}")
+    public CartResponse getCart(@PathVariable Long id) {
+        return cartService.getCart(id);
     }
 
     @PostMapping
@@ -41,5 +40,10 @@ public class CartController {
     public void remove(@Valid @RequestBody CartRequest.Remove request) {
         Long userId = UserIdInterceptor.getCurrentUserId();
         cartService.remove(userId, request);
+    }
+
+    @DeleteMapping("/{userId}/all")
+    public void clearCart(@PathVariable Long userId) {
+        cartService.clearCart(userId);
     }
 }

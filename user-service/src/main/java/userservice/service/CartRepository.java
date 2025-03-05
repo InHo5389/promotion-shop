@@ -11,4 +11,6 @@ public interface CartRepository {
     void saveCartItem(Long userId, Long productId, Long optionId, CartItem item);
     void removeCartItem(Long userId, Long productId, Long optionId);
     void setCartExpire(Long userId, long timeout, TimeUnit unit);
+
+    void deleteCart(Long userId);
 }

@@ -14,8 +14,14 @@ import productservice.repository.CategoryJpaRepository;
 import productservice.repository.ProductJpaRepository;
 import productservice.repository.ProductOptionJpaRepository;
 import productservice.repository.ProductStockJpaRepository;
+import productservice.service.dto.ProductOptionRequest;
 import productservice.service.dto.ProductRequest;
 import productservice.service.dto.ProductResponse;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -24,10 +30,7 @@ public class ProductService {
 
     private final CategoryJpaRepository categoryJpaRepository;
     private final ProductJpaRepository productJpaRepository;
-    private final ProductStockJpaRepository productStockJpaRepository;
     private final ProductOptionJpaRepository productOptionJpaRepository;
-
-    private final int MAX_RETRIES = 3;
 
     @Transactional
     public ProductResponse create(ProductRequest.Create request) {
@@ -88,5 +91,72 @@ public class ProductService {
                 .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT));
 
         productJpaRepository.delete(product);
+    }
+
+    @Transactional
+    public void decreaseStock(List<ProductOptionRequest.StockUpdate> requests) {
+        if (requests.isEmpty()) return;
+
+        List<Long> optionIds = requests.stream()
+                .map(ProductOptionRequest.StockUpdate::getOptionId)
+                .toList();
+
+        List<ProductOption> options = productOptionJpaRepository.findAllByIdIn(optionIds);
+        Map<Long, ProductOption> optionMap = options.stream()
+                .collect(Collectors.toMap(ProductOption::getId, option -> option));
+
+        for (ProductOptionRequest.StockUpdate request : requests) {
+            ProductOption option = optionMap.get(request.getOptionId());
+
+            if (option == null){
+                throw new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT_OPTION);
+            }
+
+            if (option.getStock().getQuantity() < request.getQuantity()){
+                throw new CustomGlobalException(ErrorType.NOT_ENOUGH_STOCK);
+            }
+
+            option.getStock().updateQuantity(option.getStock().getQuantity() - request.getQuantity());
+        }
+
+        productOptionJpaRepository.saveAll(options);
+    }
+
+    public void increaseStock(List<ProductOptionRequest.StockUpdate> requests) {
+        if (requests.isEmpty()) return;
+
+        List<Long> optionIds = requests.stream()
+                .map(ProductOptionRequest.StockUpdate::getOptionId)
+                .toList();
+
+        List<ProductOption> options = productOptionJpaRepository.findAllWithStockByIdIn(optionIds);
+        Map<Long, ProductOption> optionMap = options.stream()
+                .collect(Collectors.toMap(ProductOption::getId, option -> option));
+
+        for (ProductOptionRequest.StockUpdate request : requests) {
+            ProductOption option = optionMap.get(request.getOptionId());
+
+            if (option == null){
+                throw new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT_OPTION);
+            }
+
+            option.getStock().updateQuantity(option.getStock().getQuantity() + request.getQuantity());
+        }
+
+        productOptionJpaRepository.saveAll(options);
+    }
+
+    public List<ProductResponse> getProductByIds(List<Long> productIds) {
+        List<Product> products = productJpaRepository.findAllWithCategoryOptionsAndStockByIdIn(productIds);
+
+        // 요청한 ID 순서대로 결과 정렬
+        Map<Long, Product> productMap = products.stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+
+        return productIds.stream()
+                .filter(productMap::containsKey)
+                .map(productMap::get)
+                .map(ProductResponse::from)
+                .collect(Collectors.toList());
     }
 }

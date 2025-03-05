@@ -53,4 +53,9 @@ public class ProductRequest {
         private ProductStatus status;
         private List<ProductOptionRequest.Update> options;
     }
+
+    @Getter
+    public static class ReadProductIds{
+        private List<Long> productIds;
+    }
 }

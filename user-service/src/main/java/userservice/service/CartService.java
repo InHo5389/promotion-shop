@@ -204,4 +204,14 @@ public class CartService {
                 .totalPrice(totalPrice)
                 .build();
     }
+
+    public void clearCart(Long userId) {
+        Map<String, CartItem> cartItemMap = cartRepository.getCart(userId);
+
+        Cart cart = Cart.fromCartItemMap(userId, cartItemMap);
+
+        if (!cart.isEmpty()) {
+            cartRepository.deleteCart(userId);
+        }
+    }
 }

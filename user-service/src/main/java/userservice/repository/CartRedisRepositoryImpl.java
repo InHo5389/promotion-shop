@@ -68,6 +68,12 @@ public class CartRedisRepositoryImpl implements CartRepository {
         redisTemplate.expire(key, timeout, unit);
     }
 
+    @Override
+    public void deleteCart(Long userId) {
+        String key = generateKey(userId);
+        redisTemplate.delete(key);
+    }
+
     private String generateKey(Long userId) {
         return KEY_FORMAT.formatted(userId);
     }

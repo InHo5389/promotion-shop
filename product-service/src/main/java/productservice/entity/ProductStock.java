@@ -1,10 +1,7 @@
 package productservice.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import productservice.common.BaseEntity;
 
 @Getter
@@ -18,6 +15,7 @@ public class ProductStock extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Setter
     @OneToOne
     @JoinColumn(name = "product_option_id")
     private ProductOption productOption;
