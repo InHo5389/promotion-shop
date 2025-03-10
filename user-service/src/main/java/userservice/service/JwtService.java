@@ -27,8 +27,8 @@ public class JwtService {
         long currentTimeMillis = System.currentTimeMillis();
         return Jwts.builder()
                 .subject(user.getEmail())
-                .claim("role", "USER")
                 .claim("id", user.getId())
+                .claim("role", user.getRole())
                 .issuedAt(new Date(currentTimeMillis))
                 .expiration(new Date(currentTimeMillis + 3600000)) // 1시간
                 .signWith(Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8)))

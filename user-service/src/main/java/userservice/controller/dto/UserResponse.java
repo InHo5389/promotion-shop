@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 import userservice.entity.User;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 public class UserResponse {
 
@@ -58,22 +60,18 @@ public class UserResponse {
     }
 
     @Getter
-    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Token{
-        private Long id;
-        private String email;
-        private boolean valid;
-        private String role;
+    public static class Token {
+        private Map<String, Object> claims;
 
-        public static Token from(Claims claims){
-            return Token.builder()
-                    .id(claims.get("id",Long.class))
-                    .email(claims.getSubject())
-                    .valid(true)
-                    .role(claims.get("role",String.class))
-                    .build();
+        public static Token from(Claims claims) {
+            // Claims를 Map으로 변환
+            Map<String, Object> claimsMap = new HashMap<>();
+            claimsMap.put("id",claims.get("id",String.class));
+            claimsMap.put("role",claims.get("role",String.class));
+
+            return new Token(claimsMap);
         }
     }
 }

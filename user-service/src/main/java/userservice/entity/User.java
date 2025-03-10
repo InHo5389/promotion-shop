@@ -28,11 +28,15 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private String password;
 
+    @Enumerated(EnumType.STRING)
+    private UserRole role;
+
     public static User create(String email, String encodedPassword, String name) {
         User user = new User();
         user.email = email;
         user.name = name;
         user.password = encodedPassword;
+        user.role = UserRole.USER;
         return user;
     }
 
