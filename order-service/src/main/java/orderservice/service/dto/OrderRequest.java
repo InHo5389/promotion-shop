@@ -33,6 +33,8 @@ public class OrderRequest {
     @NotBlank(message = "결제 방법은 필수입니다.")
     private String paymentMethod;
 
+    private ProductCouponInfo couponInfo;
+
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor

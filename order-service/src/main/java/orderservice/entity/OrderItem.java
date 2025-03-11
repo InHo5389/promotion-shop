@@ -10,6 +10,7 @@ import orderservice.service.dto.OrderItemRequest;
 import java.math.BigDecimal;
 
 @Getter
+@Setter
 @Entity
 @Table(name = "order_items")
 @Builder
@@ -30,7 +31,12 @@ public class OrderItem {
     private String productName;
     private String optionName;
     private int quantity;
-    private BigDecimal price;
+
+    private Long couponId;
+    private BigDecimal discountPrice;
+
+    private BigDecimal unitPrice;
+    private BigDecimal discountedTotalPrice;
     private BigDecimal totalPrice;
 
     public static OrderItem create(OrderItemRequest itemRequest, ProductResponse product) {
@@ -45,7 +51,7 @@ public class OrderItem {
                 .productName(product.getName())
                 .optionName(String.format("%s / %s", option.getSize(), option.getColor()))
                 .quantity(itemRequest.getQuantity())
-                .price(product.getPrice())
+                .unitPrice(product.getPrice())
                 .totalPrice(product.getPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity())))
                 .build();
     }

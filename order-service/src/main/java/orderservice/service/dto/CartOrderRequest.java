@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Getter
 @Builder
 @NoArgsConstructor
@@ -28,4 +30,6 @@ public class CartOrderRequest {
 
     @NotBlank(message = "결제 방법은 필수입니다")
     private String paymentMethod;
+
+    private List<ProductCouponInfo> productCoupons;
 }

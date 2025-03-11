@@ -31,7 +31,7 @@ public class OrderResponse {
 
     public static OrderResponse from(Order order) {
         List<OrderItemResponse> itemResponses = order.getOrderItems().stream()
-                .map(OrderItemResponse::from)
+                .map(OrderItemResponse::fromWithDiscount)
                 .collect(Collectors.toList());
 
         return OrderResponse.builder()
