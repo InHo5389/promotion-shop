@@ -48,6 +48,9 @@ dependencies {
 	// h2
 	runtimeOnly 'com.h2database:h2'
 
+	// redisson
+	implementation group: 'org.redisson', name: 'redisson-spring-boot-starter', version: '3.44.0'
+
 	// test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
