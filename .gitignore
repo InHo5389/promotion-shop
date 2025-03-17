@@ -43,6 +43,11 @@ out/
 *.sock
 Infrastructure/db/mysql/data/
 Infrastructure/data
+Infrastructure/db
+Infrastructure/jenkins_home
+Infrastructure/redis-config
+
+
 
 # Temporary files
 *.tmp
