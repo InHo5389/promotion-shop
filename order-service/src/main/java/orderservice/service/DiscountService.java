@@ -2,9 +2,9 @@ package orderservice.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import orderservice.client.CouponClient;
 import orderservice.client.dto.CouponRequest;
 import orderservice.client.dto.CouponResponse;
+import orderservice.client.serviceclient.CouponServiceClient;
 import orderservice.component.CouponDiscountCalculator;
 import orderservice.entity.Order;
 import orderservice.entity.OrderItem;
@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DiscountService {
 
-    private final CouponClient couponClient;
+    private final CouponServiceClient couponClient;
     private final CouponDiscountCalculator couponDiscountCalculator;
 
     @Transactional

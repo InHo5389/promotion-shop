@@ -1,8 +1,9 @@
 package userservice.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import userservice.client.ProductClient;
+import userservice.client.ProductServiceClient;
 import userservice.client.dto.ProductResponse;
 import userservice.common.exception.CustomGlobalException;
 import userservice.common.exception.ErrorType;
@@ -22,13 +23,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CartService {
 
     private final UserRepository userRepository;
     private final CartRepository cartRepository;
-    private final ProductClient productClient;
+    private final ProductServiceClient productClient;
 
     private static final int CART_EXPIRY_DAYS = 7;
 

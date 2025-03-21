@@ -17,6 +17,7 @@ public enum ErrorType {
     PRODUCT_NOT_SELL(400, "제품이 판매중이지 않습니다."),
 
     JSON_PARSING_FAILED(500, "Json 파싱 시 오류가 발생하였습니다."),
+    PRODUCT_SERVICE_UNAVAILABLE(200, "현재 일시적으로 상품 정보를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요."),
     NOT_FOUND_CART_PRODUCT(400, "장바구니 제품을 찾지 못했습니다.");
 
     private final int status;
