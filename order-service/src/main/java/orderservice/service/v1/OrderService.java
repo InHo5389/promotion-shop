@@ -2,8 +2,8 @@ package orderservice.service.v1;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import orderservice.client.CartClient;
-import orderservice.client.ProductClient;
+import orderservice.client.serviceclient.CartServiceClient;
+import orderservice.client.serviceclient.ProductServiceClient;
 import orderservice.client.dto.*;
 import orderservice.common.exception.CustomGlobalException;
 import orderservice.common.exception.ErrorType;
@@ -28,8 +28,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OrderService {
 
-    private final ProductClient productClient;
-    private final CartClient cartClient;
+    private final ProductServiceClient productClient;
+    private final CartServiceClient cartClient;
     private final OrderRepository orderRepository;
     private final DiscountService discountService;
 
@@ -43,7 +43,7 @@ public class OrderService {
                 .toList();
 
         // 2. 상품 정보 일괄 조회
-        List<ProductResponse> products = productClient.getProducts(new ProductRequest.ReadProductIds(productIds));
+        List<ProductResponse> products = productClient.getProducts(productIds);
         Map<Long, ProductResponse> productMap = products.stream()
                 .collect(Collectors.toMap(
                         ProductResponse::getId,
@@ -250,8 +250,7 @@ public class OrderService {
                 .toList();
 
         // 상품 정보 일괄 조회
-        List<ProductResponse> products = productClient.getProducts(
-                new ProductRequest.ReadProductIds(productIds));
+        List<ProductResponse> products = productClient.getProducts(productIds);
 
         Map<Long, ProductResponse> productMap = products.stream()
                 .collect(Collectors.toMap(
