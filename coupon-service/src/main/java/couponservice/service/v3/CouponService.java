@@ -5,6 +5,7 @@ import couponservice.common.exception.ErrorType;
 import couponservice.common.interceptor.UserIdInterceptor;
 import couponservice.entity.Coupon;
 import couponservice.entity.CouponPolicy;
+import couponservice.outboxmessagerelay.OutboxEventPublisher;
 import couponservice.repository.CouponRepository;
 import couponservice.repository.v2.CouponLockRepository;
 import couponservice.repository.v2.CouponPolicyRedisRepository;
@@ -40,6 +41,7 @@ public class CouponService {
     private final CouponRedisRepository couponRedisRepository;
     private final CouponProducer couponProducer;
     private final CouponPolicyRedisRepository couponPolicyRedisRepository;
+    private final OutboxEventPublisher outboxEventPublisher;
 
     @Transactional(readOnly = true)
     public void requestCouponIssue(CouponRequest.Issue request) {
@@ -62,13 +64,15 @@ public class CouponService {
                 throw new CustomGlobalException(ErrorType.COUPON_QUANTITY_EXHAUSTED);
             }
 
-            // 원래 db에 저장했었는데 더 많은 요청을 수용하기 위해 Kafka로 발급 요청 전송
-            couponProducer.sendCouponIssueRequest(
-                    CouponDto.IssueMessage.builder()
-                            .policyId(request.getCouponPolicyId())
-                            .userId(UserIdInterceptor.getCurrentUserId())
-                            .build()
-            );
+            // Outbox 패턴을 이용한 메시지 발행
+            CouponDto.IssueMessage message = CouponDto.IssueMessage.builder()
+                    .policyId(request.getCouponPolicyId())
+                    .userId(UserIdInterceptor.getCurrentUserId())
+                    .build();
+
+            outboxEventPublisher.publishCouponIssueRequest(message);
+            log.info("Coupon issue request published to outbox: policyId={}, userId={}",
+                    message.getPolicyId(), message.getUserId());
         }finally {
             couponLockRepository.unlock(lock);
         }
