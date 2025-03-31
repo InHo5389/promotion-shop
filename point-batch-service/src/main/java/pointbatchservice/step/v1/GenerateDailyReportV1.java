@@ -1,4 +1,4 @@
-package pointbatchservice.step;
+package pointbatchservice.step.v1;
 
 import jakarta.persistence.EntityManagerFactory;
 import lombok.RequiredArgsConstructor;
@@ -27,9 +27,9 @@ import java.util.HashMap;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class GenerateDailyReport {
+public class GenerateDailyReportV1 {
 
-    private static final int CHUNK_SIZE = 1000;
+    private static final int CHUNK_SIZE = 5000;
 
     private final JobRepository jobRepository;
     private final EntityManagerFactory entityManagerFactory;
@@ -46,12 +46,12 @@ public class GenerateDailyReport {
      * - Writer: 일별 리포트를 DB에 저장
      */
     @Bean
-    public Step generateDailyReportStep() {
+    public Step generateDailyReportStepV1() {
         return new StepBuilder("generateDailyReportStep", jobRepository)
                 .<Point, PointSummary>chunk(CHUNK_SIZE, transactionManager)
-                .reader(pointReader())
-                .processor(pointReportProcessor())
-                .writer(reportWriter())
+                .reader(pointReaderV1())
+                .processor(pointReportProcessorV1())
+                .writer(reportWriterV1())
                 .build();
     }
 
@@ -60,7 +60,7 @@ public class GenerateDailyReport {
      */
     @Bean
     @StepScope
-    public JpaPagingItemReader<Point> pointReader() {
+    public JpaPagingItemReader<Point> pointReaderV1() {
         HashMap<String, Object> parameters = new HashMap<>();
         LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
         parameters.put("startTime", yesterday.withHour(0).withMinute(0).withSecond(0));
@@ -80,7 +80,7 @@ public class GenerateDailyReport {
      */
     @Bean
     @StepScope
-    public ItemProcessor<Point, PointSummary> pointReportProcessor() {
+    public ItemProcessor<Point, PointSummary> pointReportProcessorV1() {
         return point -> {
             switch (point.getType()) {
                 case EARNED -> {
@@ -101,7 +101,7 @@ public class GenerateDailyReport {
 
     @Bean
     @StepScope
-    public ItemWriter<PointSummary> reportWriter() {
+    public ItemWriter<PointSummary> reportWriterV1() {
         return summaries -> {
             ArrayList<DailyPointReport> reports = new ArrayList<>();
             for (PointSummary summary : summaries) {

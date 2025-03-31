@@ -1,6 +1,7 @@
 package pointbatchservice.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -9,7 +10,9 @@ import pointbatchservice.common.BaseEntity;
 @Getter
 @Entity
 @Table(name = "points")
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 public class Point extends BaseEntity {
 
     @Id

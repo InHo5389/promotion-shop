@@ -3,6 +3,9 @@ package pointbatchservice.step;
 import jakarta.persistence.EntityManagerFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.BatchResult;
+import org.redisson.api.RBatch;
+import org.redisson.api.RMapAsync;
 import org.redisson.api.RedissonClient;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -10,26 +13,35 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.database.JpaPagingItemReader;
-import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder;
+import org.springframework.batch.item.database.JdbcCursorItemReader;
+import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
+import org.springframework.batch.item.support.SynchronizedItemStreamReader;
+import org.springframework.batch.item.support.builder.SynchronizedItemStreamReaderBuilder;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import pointbatchservice.entity.PointBalance;
 
+import javax.sql.DataSource;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Map;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SyncPointBalance {
 
-    private static final int CHUNK_SIZE = 1000;
+    private static final int CHUNK_SIZE = 5000;
+    private static final int THREAD_COUNT = 8;
 
     private final JobRepository jobRepository;
     private final RedissonClient redissonClient;
-    private final EntityManagerFactory entityManagerFactory;
     private final PlatformTransactionManager transactionManager;
+    private final DataSource dataSource;
 
     /**
      * 포인트 잔액 동기화 Step
@@ -43,9 +55,18 @@ public class SyncPointBalance {
     public Step syncPointBalanceStep() {
         return new StepBuilder("syncPointBalanceStep", jobRepository)
                 .<PointBalance, Map.Entry<String, Long>>chunk(CHUNK_SIZE, transactionManager)
-                .reader(pointBalanceReader())
+                .reader(pointSynchronizedItemReader())
                 .processor(pointBalanceProcessor())
                 .writer(pointBalanceWriter())
+                .taskExecutor(syncPointBalanceTaskExecutor())
+                .build();
+    }
+
+    @Bean
+    @StepScope
+    public SynchronizedItemStreamReader<PointBalance> pointSynchronizedItemReader() {
+        return new SynchronizedItemStreamReaderBuilder<PointBalance>()
+                .delegate(pointBalanceReader())
                 .build();
     }
 
@@ -56,12 +77,25 @@ public class SyncPointBalance {
      */
     @Bean
     @StepScope
-    public JpaPagingItemReader<PointBalance> pointBalanceReader() {
-        return new JpaPagingItemReaderBuilder<PointBalance>()
+    public JdbcCursorItemReader<PointBalance> pointBalanceReader() {
+        return new JdbcCursorItemReaderBuilder<PointBalance>()
                 .name("pointBalanceReader")
-                .entityManagerFactory(entityManagerFactory)
-                .pageSize(CHUNK_SIZE)
-                .queryString("SELECT pb From PointBalance pb")
+                .dataSource(dataSource)
+                .sql("SELECT id, user_id, balance, version, created_at, modified_at FROM point_balances")
+                .fetchSize(CHUNK_SIZE)
+                .verifyCursorPosition(false)
+                .preparedStatementSetter(ps -> {
+                    ps.setFetchSize(Integer.MIN_VALUE);
+                })
+                .rowMapper((rs, rowNum) -> mapResultSetToPointBalance(rs))
+                .build();
+    }
+
+    private PointBalance mapResultSetToPointBalance(ResultSet rs) throws SQLException {
+        return PointBalance.builder()
+                .id(rs.getLong("id"))
+                .userId(rs.getLong("user_id"))
+                .balance(rs.getLong("balance"))
                 .build();
     }
 
@@ -81,8 +115,31 @@ public class SyncPointBalance {
     @StepScope
     public ItemWriter<Map.Entry<String, Long>> pointBalanceWriter() {
         return items -> {
-            var balanceMap = redissonClient.getMap("point:balance");
-            items.forEach(item -> balanceMap.put(item.getKey(), item.getValue()));
+            RBatch batch = redissonClient.createBatch();
+            RMapAsync<String, Long> asyncMap = batch.getMap("point:balance");
+
+            items.forEach(item -> {
+                asyncMap.putAsync(item.getKey(), item.getValue());
+            });
+
+            BatchResult<?> result = batch.execute();
+
+            log.debug("Saved {} items to Redis in thread: {}",
+                    items.size(), Thread.currentThread().getName());
         };
+    }
+
+    @Bean
+    public TaskExecutor syncPointBalanceTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(THREAD_COUNT);
+        executor.setMaxPoolSize(THREAD_COUNT);
+        executor.setQueueCapacity(CHUNK_SIZE);
+        executor.setThreadNamePrefix("sync-balance-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+
+        log.info("Configured ThreadPoolTaskExecutor with {} threads for syncPointBalance", THREAD_COUNT);
+        return executor;
     }
 }

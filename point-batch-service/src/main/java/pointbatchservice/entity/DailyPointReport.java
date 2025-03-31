@@ -37,12 +37,12 @@ public class DailyPointReport {
 
     @Builder
     public DailyPointReport(Long userId, LocalDate reportDates, Long earnAmount,
-                            Long useAmount, Long cancelAmount, Long netAmount) {
+                            Long useAmount, Long cancelAmount) {
         this.userId = userId;
         this.reportDates = reportDates;
         this.earnAmount = earnAmount;
         this.useAmount = useAmount;
         this.cancelAmount = cancelAmount;
-        this.netAmount = netAmount;
+        this.netAmount = earnAmount - useAmount + cancelAmount;
     }
 }
