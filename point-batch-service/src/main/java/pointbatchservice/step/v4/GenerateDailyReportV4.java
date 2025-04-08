@@ -31,6 +31,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
@@ -54,6 +55,7 @@ public class GenerateDailyReportV4 {
      */
     @Bean
     public Step generateDailyReportStepV4() {
+        log.info("일별 포인트 리포트 생성 스텝 구성 - chunkSize: {}, threadCount: {}", CHUNK_SIZE, THREAD_COUNT);
         return new StepBuilder("generateDailyReportStepV4", jobRepository)
                 .<Point, PointSummary>chunk(CHUNK_SIZE, transactionManager)
                 .reader(synchronizedItemReader())
@@ -69,6 +71,8 @@ public class GenerateDailyReportV4 {
     @Bean
     @StepScope
     public SynchronizedItemStreamReader<Point> synchronizedItemReader() {
+        log.info("SynchronizedItemStreamReader 생성");
+
         return new SynchronizedItemStreamReaderBuilder<Point>()
                 .delegate(pointReaderV4())
                 .build();
@@ -83,7 +87,7 @@ public class GenerateDailyReportV4 {
          LocalDateTime startTime = LocalDateTime.now().minusDays(1).withHour(0).withMinute(0).withSecond(0);
          LocalDateTime endTime = LocalDateTime.now().minusDays(1).withHour(23).withMinute(59).withSecond(59);
 
-        log.info("Point transaction retrieval period: {} ~ {}", startTime, endTime);
+        log.info("포인트 트랜잭션 조회 기간: {} ~ {}", startTime, endTime);
 
         Map<String, Object> parameterValues = new HashMap<>();
         parameterValues.put("startTime", startTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
@@ -123,7 +127,16 @@ public class GenerateDailyReportV4 {
     @Bean
     @StepScope
     public ItemProcessor<Point, PointSummary> pointReportProcessorV4() {
+        final AtomicLong processCounter = new AtomicLong(0);
+        final AtomicLong skippedCounter = new AtomicLong(0);
+
         return point -> {
+            long current = processCounter.incrementAndGet();
+            if (current % 10000 == 0) {
+                log.debug("포인트 트랜잭션 처리 중... - 현재까지 {}건 처리, {}건 스킵",
+                        current, skippedCounter.get());
+            }
+
             switch (point.getType()) {
                 case EARNED -> {
                     return new PointSummary(point.getUserId(), point.getAmount(), 0L, 0L);
