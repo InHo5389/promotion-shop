@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public interface PointBalanceJpaRepository extends JpaRepository<PointBalance, Long> {
 
-    @Lock(LockModeType.OPTIMISTIC)
+//    @Lock(LockModeType.OPTIMISTIC)
     Optional<PointBalance> findByUserId(Long userId);
 
     @Query("SELECT p FROM PointBalance p WHERE p.userId = :userId")

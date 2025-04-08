@@ -4,10 +4,12 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import pointservice.common.BaseEntity;
 import pointservice.common.exception.CustomGlobalException;
 import pointservice.common.exception.ErrorType;
 
+@Slf4j
 @Getter
 @Entity
 @Table(name = "points")
@@ -35,7 +37,7 @@ public class Point extends BaseEntity {
     @JoinColumn(name = "point_balance_id")
     private PointBalance pointBalance;
 
-    @Version
+    //    @Version
     private Long version;
 
     @Builder
@@ -47,19 +49,20 @@ public class Point extends BaseEntity {
         this.pointBalance = pointBalance;
     }
 
-    public static Point create(Long userId, Long amount, PointType type, Long balanceSnapshot, PointBalance pointBalance){
+    public static Point create(Long userId, Long amount, PointType type, Long balanceSnapshot, PointBalance pointBalance) {
         Point point = new Point();
         point.userId = userId;
         point.amount = amount;
         point.type = type;
         point.balanceSnapshot = balanceSnapshot;
         point.pointBalance = pointBalance;
-        point.version = 0L;
         return point;
     }
 
     public void cancel() {
         if (this.type == PointType.CANCELED) {
+            log.info("포인트 취소 불가 - 이미 취소됨 - userId: {}, pointId: {}, amount: {}P",
+                    this.userId, this.id, this.amount);
             throw new CustomGlobalException(ErrorType.ALREADY_CANCELED_POINT);
         }
 
@@ -71,11 +74,18 @@ public class Point extends BaseEntity {
 
         if (this.type == PointType.EARNED) {
             if (currentBalance < this.amount) {
+                log.info("포인트 취소 불가 - 잔액 부족 - userId: {}, pointId: {}, 취소 필요 금액: {}P, 현재 잔액: {}P",
+                        this.userId, this.id, this.amount, currentBalance);
                 throw new CustomGlobalException(ErrorType.NOT_ENOUGH_POINT_BALANCE);
             }
+
             this.pointBalance.decreaseBalance(this.amount);
+            log.info("적립 포인트 취소 완료 - userId: {}, pointId: {}, amount: {}P, 이전 잔액: {}P, 갱신 잔액: {}P",
+                    this.userId, this.id, this.amount, currentBalance, this.pointBalance.getBalance());
         } else if (this.type == PointType.USED) {
             this.pointBalance.increaseBalance(this.amount);
+            log.info("사용 포인트 취소 완료 - userId: {}, pointId: {}, amount: {}P, 이전 잔액: {}P, 갱신 잔액: {}P",
+                    this.userId, this.id, this.amount, currentBalance, this.pointBalance.getBalance());
         } else {
             throw new CustomGlobalException(ErrorType.INVALID_POINT_TYPE);
         }

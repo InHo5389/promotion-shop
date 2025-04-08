@@ -24,7 +24,7 @@ public class PointBalance extends BaseEntity {
     @Column(nullable = false)
     private Long balance;
 
-    @Version
+//    @Version
     private Long version;
 
     @Builder
@@ -37,7 +37,6 @@ public class PointBalance extends BaseEntity {
         PointBalance pointBalance = new PointBalance();
         pointBalance.userId = userId;
         pointBalance.balance = 0L;
-        pointBalance.version = 0L;
         return pointBalance;
     }
 
