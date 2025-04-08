@@ -35,6 +35,8 @@ public class CartService {
     private static final int CART_EXPIRY_DAYS = 7;
 
     public CartResponse getCart(Long userId) {
+        log.info("장바구니 조회 - userId: {}", userId);
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_USER));
 
@@ -51,6 +53,8 @@ public class CartService {
                     .totalPrice(BigDecimal.ZERO)
                     .build();
         }
+
+        log.debug("장바구니 아이템 수 - userId: {}, itemCount: {}", userId, cart.getItems().size());
 
         List<CartProductResponse> itemResponses = new ArrayList<>();
         BigDecimal totalPrice = BigDecimal.ZERO;
@@ -70,6 +74,8 @@ public class CartService {
             totalPrice = totalPrice.add(itemResponse.getTotalPrice());
         }
 
+        log.debug("장바구니 아이템 수 - userId: {}, itemCount: {}", userId, cart.getItems().size());
+
         return CartResponse.builder()
                 .userId(userId)
                 .username(user.getName())
@@ -79,10 +85,15 @@ public class CartService {
     }
 
     public CartItem addToCart(Long userId, CartRequest.Add request) {
+        log.info("장바구니 추가 요청 - userId: {}, productId: {}, optionId: {}, quantity: {}",
+                userId, request.getProductId(), request.getProductOptionId(), request.getQuantity());
+
         // 제품 정보 확인
         ProductResponse product = productClient.getProduct(request.getProductId().toString());
 
         if (!product.getStatus().equals("ACTIVE")) {
+            log.info("장바구니 추가 실패 - 판매중이 아닌 상품 - userId: {}, productId: {}, status: {}",
+                    userId, request.getProductId(), product.getStatus());
             throw new CustomGlobalException(ErrorType.PRODUCT_NOT_SELL);
         }
 
@@ -91,6 +102,8 @@ public class CartService {
 
         // 재고 확인
         if (option.getStockQuantity() < request.getQuantity()) {
+            log.info("장바구니 추가 실패 - 재고 부족 - userId: {}, productId: {}, optionId: {}, requested: {}, available: {}",
+                    userId, request.getProductId(), request.getProductOptionId(), request.getQuantity(), option.getStockQuantity());
             throw new CustomGlobalException(ErrorType.NOT_ENOUGH_STOCK);
         }
 
@@ -113,10 +126,15 @@ public class CartService {
         // 장바구니 만료 설정
         cartRepository.setCartExpire(userId, CART_EXPIRY_DAYS, TimeUnit.DAYS);
 
+        log.info("장바구니 추가 성공 - userId: {}, productId: {}, optionId: {}, quantity: {}",
+                userId, request.getProductId(), request.getProductOptionId(), request.getQuantity());
         return cartItem;
     }
 
     public CartItem updateOption(Long userId, Long originalProductId, Long originalOptionId, CartRequest.Update request) {
+        log.info("장바구니 상품 옵션 변경 - userId: {}, originalProductId: {}, originalOptionId: {}, newProductId: {}, newOptionId: {}, newQuantity: {}",
+                userId, originalProductId, originalOptionId, request.getProductId(), request.getProductOptionId(), request.getQuantity());
+
         // 제품 정보 확인
         ProductResponse product = productClient.getProduct(request.getProductId().toString());
 
@@ -124,6 +142,8 @@ public class CartService {
         if (request.getQuantity() > 0) {
             ProductResponse.ProductOptionDto option = findProductOption(product, request.getProductOptionId());
             if (option.getStockQuantity() < request.getQuantity()) {
+                log.info("장바구니 옵션 변경 실패 - 재고 부족 - userId: {}, productId: {}, optionId: {}, requested: {}, available: {}",
+                        userId, request.getProductId(), request.getProductOptionId(), request.getQuantity(), option.getStockQuantity());
                 throw new CustomGlobalException(ErrorType.NOT_ENOUGH_STOCK);
             }
         }
@@ -134,11 +154,15 @@ public class CartService {
         // 원본 아이템 확인
         String originalItemKey = originalProductId + "::" + originalOptionId;
         if (!cartItemMap.containsKey(originalItemKey)) {
+            log.info("장바구니 옵션 변경 실패 - 원본 상품 없음 - userId: {}, productId: {}, optionId: {}",
+                    userId, originalProductId, originalOptionId);
             throw new CustomGlobalException(ErrorType.NOT_FOUND_CART_PRODUCT);
         }
 
         // 수량이 0 이하면 제품 삭제 후 종료
         if (request.getQuantity() <= 0) {
+            log.info("장바구니 상품 삭제 (수량 0으로 업데이트) - userId: {}, productId: {}, optionId: {}",
+                    userId, originalProductId, originalOptionId);
             cartRepository.removeCartItem(userId, originalProductId, originalOptionId);
             return null;
         }
@@ -149,6 +173,8 @@ public class CartService {
         if (!originalItemKey.equals(newItemKey) && cartItemMap.containsKey(newItemKey)) {
             CartItem existingItem = cartItemMap.get(newItemKey);
             if (existingItem.getQuantity() == request.getQuantity()) {
+                log.info("장바구니 옵션 변경 실패 - 동일한 상품과 수량이 이미 존재함 - userId: {}, productId: {}, optionId: {}, quantity: {}",
+                        userId, request.getProductId(), request.getProductOptionId(), request.getQuantity());
                 throw new CustomGlobalException(ErrorType.ALREADY_IN_CART);
             }
         }
@@ -165,10 +191,16 @@ public class CartService {
                 .build();
 
         cartRepository.saveCartItem(userId, request.getProductId(), request.getProductOptionId(), cartItem);
+
+        log.info("장바구니 상품 옵션 변경 성공 - userId: {}, 원본: {}::{} → 변경: {}::{}, 수량: {}",
+                userId, originalProductId, originalOptionId, request.getProductId(), request.getProductOptionId(), request.getQuantity());
         return cartItem;
     }
 
     public void remove(Long userId, CartRequest.Remove request) {
+        log.info("장바구니 상품 삭제 요청 - userId: {}, productId: {}, optionId: {}",
+                userId, request.getProductId(), request.getProductOptionId());
+
         // 현재 장바구니 상태 확인
         Map<String, CartItem> cartItemMap = cartRepository.getCart(userId);
 
@@ -180,6 +212,9 @@ public class CartService {
 
         // 저장소에서 삭제
         cartRepository.removeCartItem(userId, request.getProductId(), request.getProductOptionId());
+
+        log.info("장바구니 상품 삭제 성공 - userId: {}, productId: {}, optionId: {}",
+                userId, request.getProductId(), request.getProductOptionId());
     }
 
     private ProductResponse.ProductOptionDto findProductOption(ProductResponse product, Long optionId) {
@@ -208,12 +243,15 @@ public class CartService {
     }
 
     public void clearCart(Long userId) {
+        log.info("장바구니 전체 비우기 요청 - userId: {}", userId);
+
         Map<String, CartItem> cartItemMap = cartRepository.getCart(userId);
 
         Cart cart = Cart.fromCartItemMap(userId, cartItemMap);
 
         if (!cart.isEmpty()) {
             cartRepository.deleteCart(userId);
+            log.info("장바구니 전체 비우기 성공 - userId: {}, itemCount: {}", userId, cart.getItems().size());
         }
     }
 }
