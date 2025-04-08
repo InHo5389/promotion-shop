@@ -69,14 +69,20 @@ public class OrderService {
         }
 
         // 4. 재고 일괄 감소 (1회 API 호출)
+        log.debug("Decreasing stock for {} items", stockUpdates.size());
         productClient.decreaseStock(stockUpdates);
 
         order.setTotalAmount(totalAmount);
         Order savedOrder = orderRepository.save(order);
+        log.debug("Order created orderId={}, totalAmount={}", savedOrder.getId(), totalAmount);
 
         // 쿠폰 적용 로직
         if (request.getCouponInfo() != null && request.getCouponInfo().getCouponId() != null) {
             try {
+                log.debug("Applying coupon couponId={}, productId={}",
+                        request.getCouponInfo().getCouponId(),
+                        request.getCouponInfo().getProductId());
+
                 // 주문 항목 중 쿠폰 적용 대상 찾기
                 savedOrder.getOrderItems().stream()
                         .filter(item -> item.getProductId().equals(request.getCouponInfo().getProductId())
@@ -96,11 +102,16 @@ public class OrderService {
                             // 변경사항 저장
                             orderRepository.save(savedOrder);
 
-                            log.info("Applied coupon ID: {} to order ID: {}",
-                                    request.getCouponInfo().getCouponId(), savedOrder.getId());
+                            log.info("Coupon applied orderId={}, couponId={}, finalAmount={}",
+                                    savedOrder.getId(),
+                                    request.getCouponInfo().getCouponId(),
+                                    savedOrder.getTotalAmount());
                         });
             } catch (Exception e) {
-                log.error("Error applying coupon: {}", e.getMessage());
+                log.error("Coupon application failed orderId={}, couponId={}, error={}",
+                        savedOrder.getId(),
+                        request.getCouponInfo().getCouponId(),
+                        e.getMessage());
                 // 쿠폰 적용 실패 시에도 주문은 계속 처리
             }
         }
@@ -110,20 +121,30 @@ public class OrderService {
 
     @Transactional
     public OrderResponse cancel(Long orderId, Long userId) {
+        log.info("Cancelling order orderId={}, userId={}", orderId, userId);
+
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_ORDER));
+                .orElseThrow(() -> {
+                    log.info("Order not found orderId={}", orderId);
+                    return new CustomGlobalException(ErrorType.NOT_FOUND_ORDER);
+                });
 
         if (!order.getUserId().equals(userId)) {
+            log.info("Cancel permission denied orderId={}, orderUserId={}, requestUserId={}",
+                    orderId, order.getUserId(), userId);
             throw new CustomGlobalException(ErrorType.NO_PERMISSION_TO_CANCEL_ORDER);
         }
 
         if (order.getStatus() == OrderStatus.CANCELLED) {
+            log.debug("Order already cancelled orderId={}", orderId);
             throw new CustomGlobalException(ErrorType.ORDER_ALREADY_CANCELED);
         }
 
         if (order.getStatus() == OrderStatus.SHIPPED ||
                 order.getStatus() == OrderStatus.DELIVERED ||
                 order.getStatus() == OrderStatus.REFUNDED) {
+            log.info("Order cannot be cancelled orderId={}, currentStatus={}",
+                    orderId, order.getStatus());
             throw new CustomGlobalException(ErrorType.ORDER_CANNOT_BE_CANCELED);
         }
 
@@ -138,19 +159,23 @@ public class OrderService {
                 .collect(Collectors.toList());
 
         if (!stockUpdates.isEmpty()) {
+            log.debug("Increasing stock after cancellation orderId={}, itemCount={}",
+                    orderId, stockUpdates.size());
             productClient.increaseStock(stockUpdates);
         }
 
+        log.info("Order successfully cancelled orderId={}", orderId);
         return OrderResponse.from(order);
     }
 
     @Transactional
     public OrderResponse cartOrder(CartOrderRequest request) {
-        log.info("cartOrder");
+        log.info("Starting cart order for userId={}", request.getUserId());
         CartResponse cartResponse = cartClient.getCart(request.getUserId());
-        log.info("cartClient.getCart");
+        log.debug("Cart retrieved for userId={}, items count={}", request.getUserId(), cartResponse.getItems().size());
 
         if (cartResponse.getItems().isEmpty()) {
+            log.info("Empty cart order attempt for userId={}", request.getUserId());
             throw new CustomGlobalException(ErrorType.CART_EMPTY);
         }
 
@@ -207,10 +232,14 @@ public class OrderService {
 
         // 주문 저장 및 재고 감소
         Order savedOrder = orderRepository.save(order);
+        log.info("Order saved successfully orderId={}", savedOrder.getId());
+
         productClient.decreaseStock(stockUpdates);
+        log.debug("Stock decreased successfully");
 
         // 장바구니 비우기
         cartClient.clearCart(request.getUserId());
+        log.debug("Cart cleared for userId={}", request.getUserId());
 
         return OrderResponse.from(savedOrder);
     }
@@ -239,6 +268,7 @@ public class OrderService {
                 .map(OrderItem::getDiscountedTotalPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        log.debug("Setting final order amount - totalAmount={}", finalTotalAmount);
         order.setTotalAmount(finalTotalAmount);
     }
 
@@ -251,6 +281,7 @@ public class OrderService {
 
         // 상품 정보 일괄 조회
         List<ProductResponse> products = productClient.getProducts(productIds);
+        log.debug("Products information retrieved - requested={}, received={}", productIds.size(), products.size());
 
         Map<Long, ProductResponse> productMap = products.stream()
                 .collect(Collectors.toMap(
@@ -264,6 +295,8 @@ public class OrderService {
 
             // 상품이 판매 중인지 확인
             if (!"ACTIVE".equals(product.getStatus())) {
+                log.info("Attempt to order inactive product - productId={}, status={}",
+                        cartItem.getProductId(), product.getStatus());
                 throw new CustomGlobalException(ErrorType.PRODUCT_NOT_SELL);
             }
 

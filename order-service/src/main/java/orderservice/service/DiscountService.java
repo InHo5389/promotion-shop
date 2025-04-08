@@ -39,8 +39,6 @@ public class DiscountService {
                         item -> item
                 ));
 
-        // 초반에 OrderItem에 couponId 설정 코드는 제거 (아래에서 한 번만 설정)
-
         BigDecimal totalDiscountAmount = BigDecimal.ZERO;
 
         for (ProductCouponInfo couponInfo : productCoupons) {
@@ -83,13 +81,16 @@ public class DiscountService {
             // 총 할인 금액 누적
             totalDiscountAmount = totalDiscountAmount.add(discountAmount);
 
-            log.info("Applied coupon ID: {} to product ID: {}, discount amount: {}",
-                    couponInfo.getCouponId(), orderItem.getProductId(), discountAmount);
+            log.info("Coupon applied orderId={}, couponId={}, productId={}, discountAmount={}",
+                    order.getId(), couponInfo.getCouponId(), orderItem.getProductId(), discountAmount);
 
         }
 
         // 주문 총액 재계산 (할인 적용 후)
         BigDecimal finalTotalAmount = couponDiscountCalculator.calculateFinalTotalAmount(order);
         order.setTotalAmount(finalTotalAmount);
+
+        log.info("Discount applied orderId={}, totalDiscountAmount={}, finalAmount={}",
+                order.getId(), totalDiscountAmount, finalTotalAmount);
     }
 }
