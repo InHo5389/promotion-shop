@@ -15,7 +15,7 @@ public class PointFacade {
             try {
                 return pointService.earn(userId,amount);
             }catch (Exception e){
-                Thread.sleep(50);
+                Thread.sleep(20);
             }
         }
     }

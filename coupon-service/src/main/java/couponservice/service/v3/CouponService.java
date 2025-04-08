@@ -45,34 +45,46 @@ public class CouponService {
 
     @Transactional(readOnly = true)
     public void requestCouponIssue(CouponRequest.Issue request) {
-        RLock lock = couponLockRepository.getLock(request.getCouponPolicyId());
+        Long userId = UserIdInterceptor.getCurrentUserId();
+        Long policyId = request.getCouponPolicyId();
+
+        log.info("Coupon issue requested - policyId: {}, userId: {}", policyId, userId);
+
+        RLock lock = couponLockRepository.getLock(policyId);
 
         try {
             if (!couponLockRepository.tryLock(lock)) {
+                log.warn("Failed to acquire lock for coupon policy: {} - Too many concurrent requests", policyId);
                 throw new CustomGlobalException(ErrorType.COUPON_TO_MANY_REQUEST);
             }
+            log.debug("Lock acquired for coupon policy: {}", policyId);
 
-            CouponPolicy couponPolicy = couponPolicyRedisRepository.getCouponPolicy(request.getCouponPolicyId())
-                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_COUPON_POLICY));
+            CouponPolicy couponPolicy = couponPolicyRedisRepository.getCouponPolicy(policyId)
+                    .orElseThrow(() -> {
+                        log.info("Coupon policy not found: {}", policyId);
+                        return new CustomGlobalException(ErrorType.NOT_FOUND_COUPON_POLICY);
+                    });
 
             LocalDateTime now = LocalDateTime.now();
             if (now.isBefore(couponPolicy.getStartTime()) || now.isAfter(couponPolicy.getEndTime())) {
+                log.info("Coupon not in issuable period - policyId: {}, startTime: {}, endTime: {}, currentTime: {}",
+                        policyId, couponPolicy.getStartTime(), couponPolicy.getEndTime(), now);
                 throw new CustomGlobalException(ErrorType.COUPON_NOT_ISSUABLE_PERIOD);
             }
 
-            if (!couponPolicyRedisRepository.decrementQuantity(request.getCouponPolicyId())) {
+            if (!couponPolicyRedisRepository.decrementQuantity(policyId)) {
+                log.info("Coupon quantity exhausted for policy: {}", policyId);
                 throw new CustomGlobalException(ErrorType.COUPON_QUANTITY_EXHAUSTED);
             }
+            log.debug("Coupon quantity decremented for policy: {}", policyId);
 
-            // Outbox 패턴을 이용한 메시지 발행
             CouponDto.IssueMessage message = CouponDto.IssueMessage.builder()
-                    .policyId(request.getCouponPolicyId())
-                    .userId(UserIdInterceptor.getCurrentUserId())
+                    .policyId(policyId)
+                    .userId(userId)
                     .build();
 
             outboxEventPublisher.publishCouponIssueRequest(message);
-            log.info("Coupon issue request published to outbox: policyId={}, userId={}",
-                    message.getPolicyId(), message.getUserId());
+            log.info("Coupon issue request published - policyId: {}, userId: {}", policyId, userId);
         }finally {
             couponLockRepository.unlock(lock);
         }
@@ -80,38 +92,65 @@ public class CouponService {
 
     @Transactional
     public void issue(CouponDto.IssueMessage message) {
+        Long policyId = message.getPolicyId();
+        Long userId = message.getUserId();
+
+        log.info("Processing coupon issue - policyId: {}, userId: {}", policyId, userId);
+
         try {
-            CouponPolicy couponPolicy = couponPolicyRedisRepository.getCouponPolicy(message.getPolicyId())
-                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_COUPON_POLICY));
+            CouponPolicy couponPolicy = couponPolicyRedisRepository.getCouponPolicy(policyId)
+                    .orElseThrow(() -> {
+                        log.info("Coupon policy not found during issue process: {}", policyId);
+                        return new CustomGlobalException(ErrorType.NOT_FOUND_COUPON_POLICY);
+                    });
 
-            Coupon coupon = Coupon.create(couponPolicy, message.getUserId(), generateCouponCode());
+            String couponCode = generateCouponCode();
+            log.debug("Generated coupon code: {} for user: {}", couponCode, userId);
+
+            Coupon coupon = Coupon.create(couponPolicy, userId, couponCode);
             Coupon savedCoupon = couponRepository.save(coupon);
-            log.info("Coupon issued successfully: policyId={}, userId={}", message.getPolicyId(), message.getUserId());
 
+            log.info("Coupon issued successfully - id: {}, policyId: {}, userId: {}, code: {}",
+                    savedCoupon.getId(), policyId, userId, couponCode);
         } catch (Exception e) {
-            log.error("Failed to issue coupon: {}", e.getMessage());
+            log.error("Failed to issue coupon - policyId: {}, userId: {}", policyId, userId, e);
             throw e;
         }
     }
 
     @Transactional
     public CouponResponse.Response use(Long couponId, Long orderId) {
+        log.info("Coupon use requested - couponId: {}, orderId: {}", couponId, orderId);
+
         Coupon coupon = couponRepository.findByIdWithPolicyForUpdate(couponId)
                 .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_COUPON));
+        log.debug("Coupon found - id: {}, status: {}, userId: {}",
+                coupon.getId(), coupon.getStatus(), coupon.getUserId());
+
         coupon.use(orderId);
+        log.info("Coupon used - id: {}, orderId: {}", couponId, orderId);
 
         couponRedisRepository.updateCouponState(coupon);
+        log.debug("Coupon state updated in Redis - id: {}", couponId);
 
         return CouponResponse.Response.from(coupon);
     }
 
     @Transactional
     public CouponResponse.Response cancel(Long couponId) {
+        log.info("Coupon cancellation requested - couponId: {}", couponId);
+
         Coupon coupon = couponRepository.findByIdWithPolicyForUpdate(couponId)
                 .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_COUPON));
-        coupon.cancel();
+        log.debug("Coupon found for cancellation - id: {}, status: {}, userId: {}",
+                coupon.getId(), coupon.getStatus(), coupon.getUserId());
 
+        coupon.cancel();
+        log.info("Coupon cancelled - id: {}", couponId);
+
+        // Redis 상태 업데이트
         couponRedisRepository.updateCouponState(coupon);
+        log.debug("Coupon state updated in Redis after cancellation - id: {}", couponId);
 
         return CouponResponse.Response.from(coupon);
     }

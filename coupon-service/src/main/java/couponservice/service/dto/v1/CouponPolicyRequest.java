@@ -5,8 +5,10 @@ import couponservice.entity.DiscountType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
@@ -14,6 +16,8 @@ public class CouponPolicyRequest {
 
     @Data
     @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
     public static class Create {
         @NotBlank(message = "쿠폰 정책 제목은 필수입니다.")
         private String title;

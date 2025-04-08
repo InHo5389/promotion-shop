@@ -24,6 +24,8 @@ public class JwtService {
     private String secretKey;
 
     public String generateToken(User user) {
+        log.info("JWT 토큰 생성 - userId: {}, email: {}", user.getId(), user.getEmail());
+
         long currentTimeMillis = System.currentTimeMillis();
         return Jwts.builder()
                 .subject(user.getEmail())
@@ -36,8 +38,13 @@ public class JwtService {
     }
 
     public Claims validateToken(String token) {
+        log.debug("JWT 토큰 검증 시도");
+
         try {
-            return parseJwtClaims(token);
+            Claims claims = parseJwtClaims(token);
+            log.info("JWT 토큰 검증 성공 - subject: {}, userId: {}",
+                    claims.getSubject(), claims.get("id", Long.class));
+            return claims;
         } catch (Exception e) {
             log.error("Token validation error : ", e);
             throw new IllegalArgumentException("Invalid Token");
@@ -53,8 +60,13 @@ public class JwtService {
     }
 
     public String refreshToken(String token) {
+        log.info("JWT 토큰 갱신 요청");
+
         Claims claims = parseJwtClaims(token);
         long currentTimeMillis = System.currentTimeMillis();
+
+        log.info("JWT 토큰 갱신 성공 - subject: {}, userId: {}",
+                claims.getSubject(), claims.get("id", Long.class));
 
         return Jwts.builder()
                 .subject(claims.getSubject())

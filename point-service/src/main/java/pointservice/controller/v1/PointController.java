@@ -9,6 +9,7 @@ import pointservice.common.interceptor.UserIdInterceptor;
 import pointservice.controller.dto.PointRequest;
 import pointservice.controller.dto.PointResponse;
 import pointservice.entity.Point;
+import pointservice.service.v1.PointFacade;
 import pointservice.service.v1.PointService;
 
 @RestController
@@ -17,12 +18,17 @@ import pointservice.service.v1.PointService;
 public class PointController {
 
     private final PointService pointService;
+    private final PointFacade pointFacade;
 
     @PostMapping("/earn")
     public PointResponse earn(@Valid @RequestBody PointRequest.Earn request) {
 
         Long userId = UserIdInterceptor.getCurrentUserId();
-        return PointResponse.from(pointService.earn(userId, request.getAmount()));
+        try {
+            return PointResponse.from(pointFacade.earn(userId, request.getAmount()));
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @PostMapping("/use")

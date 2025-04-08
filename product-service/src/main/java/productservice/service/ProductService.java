@@ -34,8 +34,9 @@ public class ProductService {
 
     @Transactional
     public ProductResponse create(ProductRequest.Create request) {
+        log.info("상품 생성 요청 - 카테고리ID: {}, 상품명: {}, 가격: {}",
+                request.getCategoryId(), request.getName(), request.getPrice());
 
-        log.info("ProductRequest.Create = {},{}", request.getCategoryId(), request.getPrice());
         Category category = categoryJpaRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_CATEGORY));
         Product product = Product.create(category, request.getName(), request.getPrice(), request.getImage());
@@ -57,11 +58,16 @@ public class ProductService {
             product.addOption(option);
         });
 
-        return ProductResponse.from(productJpaRepository.save(product));
+        Product savedProduct = productJpaRepository.save(product);
+        log.info("상품 생성 완료 - 상품ID: {}, 상품명: {}",
+                savedProduct.getId(), savedProduct.getName());
+        return ProductResponse.from(savedProduct);
     }
 
     @Transactional
     public ProductResponse update(Long productId, ProductRequest.Update request) {
+        log.info("상품 수정 요청 - 상품ID: {}", productId);
+
         Product product = productJpaRepository.findById(productId)
                 .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT));
 
@@ -76,6 +82,8 @@ public class ProductService {
         if (request.getOptions() != null) {
             product.updateOptions(request.getOptions());
         }
+
+        log.info("상품 수정 완료 - 상품ID: {}", productId);
         return ProductResponse.from(productJpaRepository.save(product));
     }
 
@@ -97,6 +105,8 @@ public class ProductService {
     public void decreaseStock(List<ProductOptionRequest.StockUpdate> requests) {
         if (requests.isEmpty()) return;
 
+        log.info("재고 감소 요청 - 옵션 수: {}", requests.size());
+
         List<Long> optionIds = requests.stream()
                 .map(ProductOptionRequest.StockUpdate::getOptionId)
                 .toList();
@@ -108,11 +118,13 @@ public class ProductService {
         for (ProductOptionRequest.StockUpdate request : requests) {
             ProductOption option = optionMap.get(request.getOptionId());
 
-            if (option == null){
+            if (option == null) {
                 throw new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT_OPTION);
             }
 
-            if (option.getStock().getQuantity() < request.getQuantity()){
+            if (option.getStock().getQuantity() < request.getQuantity()) {
+                log.warn("재고 감소 실패 - 재고 부족 - 옵션ID: {}, 요청 수량: {}, 현재 재고: {}",
+                        request.getOptionId(), request.getQuantity(),option.getSize());
                 throw new CustomGlobalException(ErrorType.NOT_ENOUGH_STOCK);
             }
 
@@ -120,10 +132,14 @@ public class ProductService {
         }
 
         productOptionJpaRepository.saveAll(options);
+
+        log.info("재고 감소 처리 완료 - 처리된 옵션 수: {}", requests.size());
     }
 
     public void increaseStock(List<ProductOptionRequest.StockUpdate> requests) {
         if (requests.isEmpty()) return;
+
+        log.info("재고 증가 요청 - 옵션 수: {}", requests.size());
 
         List<Long> optionIds = requests.stream()
                 .map(ProductOptionRequest.StockUpdate::getOptionId)
@@ -136,7 +152,7 @@ public class ProductService {
         for (ProductOptionRequest.StockUpdate request : requests) {
             ProductOption option = optionMap.get(request.getOptionId());
 
-            if (option == null){
+            if (option == null) {
                 throw new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT_OPTION);
             }
 
@@ -144,6 +160,8 @@ public class ProductService {
         }
 
         productOptionJpaRepository.saveAll(options);
+
+        log.info("재고 증가 처리 완료 - 처리된 옵션 수: {}", requests.size());
     }
 
     public List<ProductResponse> getProductByIds(List<Long> productIds) {

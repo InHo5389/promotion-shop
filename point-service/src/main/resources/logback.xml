@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <property name="LOG_DIR" value="./logs" />
+    <property name="LOG_FILE" value="${LOG_DIR}/point-service.log"/>
+
+    <!-- Logstash로 전송할 Appender -->
+    <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+        <destination>localhost:5044</destination>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service_name":"point-service"}</customFields>
+        </encoder>
+    </appender>
+
+    <!-- 콘솔 출력 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] [traceId=%X{traceId}] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 파일 출력 -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <!-- 파일 경로를 지정하지 않음 (file 속성 제거) -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- 날짜가 포함된 파일명으로 직접 저장 -->
+            <fileNamePattern>${LOG_DIR}/point-service.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] [traceId=%X{traceId}] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Root 로거 설정 -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE" />
+        <appender-ref ref="LOGSTASH" />
+    </root>
+</configuration>
