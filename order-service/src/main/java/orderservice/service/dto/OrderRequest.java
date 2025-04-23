@@ -1,5 +1,6 @@
 package orderservice.service.dto;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -34,6 +35,9 @@ public class OrderRequest {
     private String paymentMethod;
 
     private ProductCouponInfo couponInfo;
+
+    @Min(value = 100, message = "포인트는 최소 100원 이상 사용 가능합니다")
+    private Long point;
 
     @Getter
     @NoArgsConstructor

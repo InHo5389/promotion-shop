@@ -21,6 +21,8 @@ public class OrderResponse {
     private Long userId;
     private List<OrderItemResponse> items;
     private BigDecimal totalAmount;
+    private BigDecimal finalAmount;
+    private BigDecimal usePointAmount;
     private OrderStatus status;
     private LocalDateTime orderDate;
     private String address;
@@ -39,6 +41,8 @@ public class OrderResponse {
                 .userId(order.getUserId())
                 .items(itemResponses)
                 .totalAmount(order.getTotalAmount())
+                .finalAmount(order.getFinalAmount())
+                .usePointAmount(order.getPointAmount())
                 .status(order.getStatus())
                 .orderDate(order.getCreatedAt())
                 .address(order.getAddress())
