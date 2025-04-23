@@ -55,4 +55,30 @@ public class OrderItem {
                 .totalPrice(product.getPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity())))
                 .build();
     }
+
+    // 쿠폰 할인 적용 메서드
+    public void applyCouponDiscount(Long couponId, BigDecimal discountAmount) {
+        this.couponId = couponId;
+        this.discountPrice = discountAmount;
+        calculateDiscountedPrice();
+    }
+
+    // 할인된 가격 계산 메서드
+    private void calculateDiscountedPrice() {
+        // 할인 금액이 없으면 원래 가격 사용
+        if (discountPrice == null || discountPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            this.discountedTotalPrice = this.totalPrice;
+            return;
+        }
+
+        // 할인 적용 후 가격 계산
+        BigDecimal afterDiscount = this.totalPrice.subtract(this.discountPrice);
+
+        // 음수가 되지 않도록 보장
+        if (afterDiscount.compareTo(BigDecimal.ZERO) < 0) {
+            afterDiscount = BigDecimal.ZERO;
+        }
+
+        this.discountedTotalPrice = afterDiscount;
+    }
 }

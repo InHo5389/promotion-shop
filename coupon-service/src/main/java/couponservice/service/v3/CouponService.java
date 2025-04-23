@@ -43,7 +43,7 @@ public class CouponService {
     private final CouponPolicyRedisRepository couponPolicyRedisRepository;
     private final OutboxEventPublisher outboxEventPublisher;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public void requestCouponIssue(CouponRequest.Issue request) {
         Long userId = UserIdInterceptor.getCurrentUserId();
         Long policyId = request.getCouponPolicyId();
@@ -109,6 +109,8 @@ public class CouponService {
 
             Coupon coupon = Coupon.create(couponPolicy, userId, couponCode);
             Coupon savedCoupon = couponRepository.save(coupon);
+
+            couponRedisRepository.updateCouponState(savedCoupon);
 
             log.info("Coupon issued successfully - id: {}, policyId: {}, userId: {}, code: {}",
                     savedCoupon.getId(), policyId, userId, couponCode);

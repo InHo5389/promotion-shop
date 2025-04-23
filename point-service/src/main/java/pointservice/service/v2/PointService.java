@@ -83,6 +83,11 @@ public class PointService {
             throw new CustomGlobalException(ErrorType.INSUFFICIENT_POINT_BALANCE);
         }
 
+        if (amount % 10 == 0 && amount % 100 != 0) {
+            log.info("포인트 10원 단위 사용 불가 - userId: {}, 요청 금액: {}P", userId, amount);
+            throw new CustomGlobalException(ErrorType.INVALID_POINT_AMOUNT);
+        }
+
         PointBalance pointBalance = pointBalanceRepository.findByUserId(userId)
                 .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_POINT_BALANCE));
         Long beforeBalance = pointBalance.getBalance();
