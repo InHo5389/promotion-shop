@@ -18,7 +18,7 @@ public enum ErrorType {
 
     NOT_FOUND_X_USER_ID_HEADER(400, "헤더가 비어있거나 NULL입니다."),
     PRODUCT_OPTION_NOT_FOUND(400, "제품 옵션을 찾을 수 없습니다"),
-    ;
+    INVALID_POINT_AMOUNT(400, "포인트는 10원 단위로 사용할 수 없습니다");
 
     private final int status;
     private final String message;
