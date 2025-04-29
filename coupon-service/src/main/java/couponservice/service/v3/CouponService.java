@@ -5,7 +5,6 @@ import couponservice.common.exception.ErrorType;
 import couponservice.common.interceptor.UserIdInterceptor;
 import couponservice.entity.Coupon;
 import couponservice.entity.CouponPolicy;
-import couponservice.outboxmessagerelay.OutboxEventPublisher;
 import couponservice.repository.CouponRepository;
 import couponservice.repository.v2.CouponLockRepository;
 import couponservice.repository.v2.CouponPolicyRedisRepository;
@@ -18,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import outboxmessagerelay.OutboxEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
