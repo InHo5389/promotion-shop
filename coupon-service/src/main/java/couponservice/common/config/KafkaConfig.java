@@ -80,5 +80,18 @@ public class KafkaConfig {
         factory.setConcurrency(3);
         return factory;
     }
+
+    @Bean
+    public KafkaTemplate<String, String> stringKafkaTemplate() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_SERVERS);
+        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        config.put(ProducerConfig.ACKS_CONFIG, "all");
+        config.put(ProducerConfig.RETRIES_CONFIG, 3);
+        config.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
+
+        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(config));
+    }
 }
 

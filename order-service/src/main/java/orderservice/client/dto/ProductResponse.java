@@ -1,12 +1,16 @@
 package orderservice.client.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @Getter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class ProductResponse {
 
@@ -21,6 +25,8 @@ public class ProductResponse {
 
     @Getter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ProductOptionDTO {
         private Long id;
         private String size;

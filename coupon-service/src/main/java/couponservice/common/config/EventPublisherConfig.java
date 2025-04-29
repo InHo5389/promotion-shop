@@ -1,8 +1,9 @@
-package orderservice.common.config;
+package couponservice.common.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import event.publisher.EventPublisher;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,7 +18,7 @@ public class EventPublisherConfig {
     private final ObjectMapper objectMapper;
 
     @Bean
-    public EventPublisher eventPublisher(KafkaTemplate<String, String> kafkaTemplate) {
+    public EventPublisher eventPublisher(@Qualifier("stringKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate) {
         return new EventPublisher(kafkaTemplate);
     }
 
