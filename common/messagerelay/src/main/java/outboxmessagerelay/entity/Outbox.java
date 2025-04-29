@@ -1,4 +1,4 @@
-package couponservice.outboxmessagerelay.entity;
+package outboxmessagerelay.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -20,6 +20,8 @@ public class Outbox {
     private Long id;
 
     private String topic;
+
+    @Column(columnDefinition = "TEXT")
     private String payload;
     private LocalDateTime createdAt;
 

@@ -1,9 +1,6 @@
-package couponservice.outboxmessagerelay;
+package outboxmessagerelay;
 
-import couponservice.outboxmessagerelay.entity.Outbox;
-import couponservice.outboxmessagerelay.repository.OutboxRepository;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
@@ -13,6 +10,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import outboxmessagerelay.entity.Outbox;
+import outboxmessagerelay.repository.OutboxRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;

@@ -1,13 +1,17 @@
-package couponservice.outboxmessagerelay;
+package outboxmessagerelay;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import couponservice.outboxmessagerelay.entity.Outbox;
-import couponservice.service.dto.v3.CouponDto;
+import event.Event;
+import event.EventPayload;
+import event.EventType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import outboxmessagerelay.entity.Outbox;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OutboxEventPublisher {
@@ -18,7 +22,7 @@ public class OutboxEventPublisher {
     /**
      * 쿠폰 발급 요청 메시지를 Outbox 이벤트로 발행
      */
-    public void publishCouponIssueRequest(CouponDto.IssueMessage message) {
+    public void publishCouponIssueRequest(Object message) {
         try {
             String messageJson = objectMapper.writeValueAsString(message);
 
@@ -31,5 +35,16 @@ public class OutboxEventPublisher {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to serialize coupon issue message", e);
         }
+    }
+
+    public void publish(EventType type, EventPayload payload) {
+        log.info("Publishing event: type={}, payload={}", type, payload);
+        Outbox outbox = Outbox.create(
+                type.getTopic(),
+                Event.of(System.currentTimeMillis(), type, payload).toJson()
+        );
+        log.info("Created outbox: {}", outbox);
+        applicationEventPublisher.publishEvent(OutboxEvent.of(outbox));
+        log.info("Event published to Spring context");
     }
 }

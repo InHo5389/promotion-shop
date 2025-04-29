@@ -1,4 +1,4 @@
-package couponservice.outboxmessagerelay.config;
+package outboxmessagerelay.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -20,9 +20,10 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-@EnableAsync      // 트랜잭션 끝나면은 카프카에 대한 이벤트 전송을 비동기로 처리
+@EnableAsync
 @Configuration
-@EnableScheduling // 전송되지 않은 이벤트들을 주기적으로 가져와서 폴링해서 카프카로 보내기 위함
+@EnableScheduling
+@ComponentScan("outboxmessagerelay")
 public class MessageRelayConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")

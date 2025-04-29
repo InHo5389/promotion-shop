@@ -1,8 +1,8 @@
-package couponservice.outboxmessagerelay.repository;
+package outboxmessagerelay.repository;
 
-import couponservice.outboxmessagerelay.entity.Outbox;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import outboxmessagerelay.entity.Outbox;
 
 import java.time.LocalDateTime;
 import java.util.List;
