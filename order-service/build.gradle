@@ -60,6 +60,7 @@ dependencies {
 	implementation 'org.springframework.kafka:spring-kafka'
 
 	implementation project(':common:event')
+	implementation project(':common:messagerelay')
 }
 
 dependencyManagement {
