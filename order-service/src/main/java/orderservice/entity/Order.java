@@ -22,6 +22,7 @@ public class Order extends BaseEntity {
     private Long id;
 
     private Long userId;
+    private Long timeSaleId;
     private BigDecimal totalAmount;
     private BigDecimal discountAmount;
     private BigDecimal pointAmount;
