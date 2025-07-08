@@ -43,7 +43,7 @@ public class JwtService {
         try {
             Claims claims = parseJwtClaims(token);
             log.info("JWT 토큰 검증 성공 - subject: {}, userId: {}",
-                    claims.getSubject(), claims.get("id"));
+                    claims.getSubject(), claims.get("id", Long.class));
             return claims;
         } catch (Exception e) {
             log.error("Token validation error : ", e);

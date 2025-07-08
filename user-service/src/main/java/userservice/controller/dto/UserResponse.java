@@ -68,8 +68,8 @@ public class UserResponse {
         public static Token from(Claims claims) {
             // Claims를 Map으로 변환
             Map<String, Object> claimsMap = new HashMap<>();
-            claimsMap.put("id",claims.get("id"));
-            claimsMap.put("role",claims.get("role"));
+            claimsMap.put("id",claims.get("id",String.class));
+            claimsMap.put("role",claims.get("role",String.class));
 
             return new Token(claimsMap);
         }
