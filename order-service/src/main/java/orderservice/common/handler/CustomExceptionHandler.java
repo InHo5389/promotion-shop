@@ -1,7 +1,12 @@
 package orderservice.common.handler;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import feign.FeignException;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import orderservice.common.exception.CustomGlobalException;
 import orderservice.common.exception.ErrorType;
@@ -44,7 +49,47 @@ public class CustomExceptionHandler {
                 .body(new ExceptionResponse(badRequest.value(), badRequest, errorMessage));
     }
 
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<ExceptionResponse> handleFeignException(FeignException e) {
+        log.error("Feign exception: {}", e.getMessage());
+
+        // FeignException의 status code 사용
+        int status = e.status();
+
+        return ResponseEntity.status(status)
+                .body(ExceptionResponse.builder()
+                        .code(status)
+                        .message("외부 서비스 에러: " + extractErrorMessage(e))
+                        .build());
+    }
+
+    private String extractErrorMessage(FeignException e) {
+        try {
+            String content = e.contentUTF8();
+
+            log.info("=== Feign 응답 디버깅 ===");
+            log.info("Status: {}", e.status());
+            log.info("Content: {}", content);
+            log.info("========================");
+
+            if (content == null || content.trim().isEmpty()) {
+                return "응답 내용이 없습니다";
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode node = mapper.readTree(content);
+
+            return node.has("message") ? node.get("message").asText() : "요청 처리 실패";
+
+        } catch (Exception ex) {
+            log.error("JSON 파싱 실패", ex);
+            return "서비스 호출 실패";
+        }
+    }
+
     @Getter
+    @Builder
+    @NoArgsConstructor
     @AllArgsConstructor
     private static class ExceptionResponse {
         private int code;

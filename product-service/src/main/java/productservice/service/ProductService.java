@@ -13,7 +13,6 @@ import productservice.entity.ProductStock;
 import productservice.repository.CategoryJpaRepository;
 import productservice.repository.ProductJpaRepository;
 import productservice.repository.ProductOptionJpaRepository;
-import productservice.repository.ProductStockJpaRepository;
 import productservice.service.dto.ProductOptionRequest;
 import productservice.service.dto.ProductRequest;
 import productservice.service.dto.ProductResponse;
@@ -124,7 +123,7 @@ public class ProductService {
 
             if (option.getStock().getQuantity() < request.getQuantity()) {
                 log.warn("재고 감소 실패 - 재고 부족 - 옵션ID: {}, 요청 수량: {}, 현재 재고: {}",
-                        request.getOptionId(), request.getQuantity(),option.getSize());
+                        request.getOptionId(), request.getQuantity(), option.getSize());
                 throw new CustomGlobalException(ErrorType.NOT_ENOUGH_STOCK);
             }
 

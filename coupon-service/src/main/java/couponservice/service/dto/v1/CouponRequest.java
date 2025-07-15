@@ -25,6 +25,15 @@ public class CouponRequest {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class Get{
+        private Long userId;
+        private Long couponId;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class GetList{
         private CouponStatus status;
         private Integer page;

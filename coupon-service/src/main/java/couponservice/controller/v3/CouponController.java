@@ -19,10 +19,10 @@ public class CouponController {
         return ResponseEntity.accepted().build();
     }
 
-    @PostMapping("/{couponId}/use")
+    @PostMapping("/{couponId}/use/{orderId}")
     public ResponseEntity<CouponResponse.Response> useCoupon(
             @PathVariable Long couponId,
-            @RequestParam Long orderId
+            @PathVariable Long orderId
     ) {
         return ResponseEntity.ok(couponService.use(couponId, orderId));
     }
@@ -30,5 +30,10 @@ public class CouponController {
     @PostMapping("/{couponId}/cancel")
     public ResponseEntity<CouponResponse.Response> cancelCoupon(@PathVariable Long couponId) {
         return ResponseEntity.ok(couponService.cancel(couponId));
+    }
+
+    @GetMapping("/{couponId}/{userId}")
+    public CouponResponse.Response getCoupon(@PathVariable Long couponId,@PathVariable Long userId){
+        return couponService.getCoupon(couponId,userId);
     }
 }

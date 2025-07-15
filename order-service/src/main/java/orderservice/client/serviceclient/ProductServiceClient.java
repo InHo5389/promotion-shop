@@ -1,5 +1,6 @@
 package orderservice.client.serviceclient;
 
+import feign.FeignException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,22 @@ public class ProductServiceClient {
 
     private List<ProductResponse> getProductsFallback(List<Long> productIds, Exception ex) {
         log.error("Failed to get products: {}", ex.getMessage());
+        if (ex instanceof FeignException) {
+            throw (FeignException) ex;
+        }
+        throw new CustomGlobalException(ErrorType.PRODUCT_SERVICE_UNAVAILABLE);
+    }
+
+    @CircuitBreaker(name = "productService", fallbackMethod = "getProductFallback")
+    public ProductResponse getProduct(Long productId) {
+        return productClient.read(productId);
+    }
+
+    private ProductResponse getProductFallback(Long productId, Exception ex) {
+        log.error("Failed to get product: {}", ex.getMessage());
+        if (ex instanceof FeignException) {
+            throw (FeignException) ex;
+        }
         throw new CustomGlobalException(ErrorType.PRODUCT_SERVICE_UNAVAILABLE);
     }
 
@@ -37,6 +54,9 @@ public class ProductServiceClient {
 
     private void decreaseStockFallback(List<ProductOptionRequest.StockUpdate> stockUpdates, Exception ex) {
         log.error("Failed to decrease stock: {}", ex.getMessage());
+        if (ex instanceof FeignException) {
+            throw (FeignException) ex;
+        }
         throw new CustomGlobalException(ErrorType.PRODUCT_SERVICE_UNAVAILABLE);
     }
 
@@ -47,6 +67,9 @@ public class ProductServiceClient {
 
     private void increaseStockFallback(List<ProductOptionRequest.StockUpdate> stockUpdates, Exception ex) {
         log.error("Failed to decrease stock: {}", ex.getMessage());
+        if (ex instanceof FeignException) {
+            throw (FeignException) ex;
+        }
         throw new CustomGlobalException(ErrorType.PRODUCT_SERVICE_UNAVAILABLE);
     }
 }
