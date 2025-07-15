@@ -12,7 +12,7 @@ import java.util.List;
 public interface ProductClient {
 
     @GetMapping("/api/v1/products/{productId}")
-    ProductResponse getProduct(@PathVariable String productId);
+    ProductResponse read(@PathVariable Long productId);
 
     @PostMapping("/api/v1/products/stock/decrease")
     void decreaseStock(@RequestBody List<ProductOptionRequest.StockUpdate> requests);
