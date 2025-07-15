@@ -12,8 +12,12 @@ public interface CouponClient {
     @GetMapping("/api/v2/coupons/{couponId}")
     CouponResponse.Response getCoupon(@PathVariable Long couponId);
 
-    @PostMapping("/api/v2/coupons/{couponId}/use")
-    CouponResponse.Response use(
+    @PostMapping("/api/v3/coupons/{couponId}/use/{orderId}")
+    ResponseEntity<CouponResponse.Response> useCoupon(
             @PathVariable Long couponId,
-            @RequestBody CouponRequest.Use request);
+            @PathVariable Long orderId
+    );
+
+    @GetMapping("/api/v3/coupons/{couponId}/{userId}")
+    CouponResponse.Response getCoupon(@PathVariable Long couponId,@PathVariable Long userId);
 }

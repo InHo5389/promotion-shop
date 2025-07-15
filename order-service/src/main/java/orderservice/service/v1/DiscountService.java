@@ -1,4 +1,4 @@
-package orderservice.service;
+package orderservice.service.v1;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +10,7 @@ import orderservice.entity.Order;
 import orderservice.entity.OrderItem;
 import orderservice.service.dto.ProductCouponInfo;
 import org.springframework.data.util.Pair;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,14 +58,14 @@ public class DiscountService {
             }
 
 
-            // 쿠폰 사용 API 호출
-            CouponResponse.Response couponResponse = couponClient.use(couponInfo.getCouponId(), new CouponRequest.Use(order.getId()));
+            // 쿠폰 사용 API 호출co
+            ResponseEntity<CouponResponse.Response> couponResponse = couponClient.useCoupon(couponInfo.getCouponId(), order.getId());
 
             // 할인 금액 계산
             BigDecimal discountAmount = couponDiscountCalculator.calculateDiscountAmount(
-                    couponResponse.getDiscountType(),
-                    couponResponse.getDiscountValue(),
-                    couponResponse.getMaximumDiscountAmount(),
+                    couponResponse.getBody().getDiscountType(),
+                    couponResponse.getBody().getDiscountValue(),
+                    couponResponse.getBody().getMaximumDiscountAmount(),
                     orderItem.getUnitPrice());
 
             // 주문 아이템에 쿠폰 정보 설정

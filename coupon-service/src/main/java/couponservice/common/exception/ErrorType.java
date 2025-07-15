@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 public enum ErrorType {
 
     COUPON_ALREADY_USED(400, "이미 사용된 쿠폰입니다."),
-    COUPON_NOT_USED(400, "사용된 쿠폰이 아니라 취소할 수 없습니다.."),
+    COUPON_NOT_USED(400, "사용된 쿠폰이 아니라 취소할 수 없습니다."),
+    COUPON_NOT_FOUND(400, "쿠폰이 존재하지 않습니다."),
     COUPON_EXPIRED(400, "쿠폰이 만료되었습니다."),
     COUPON_NON_USED(400, "사용되지 않은 쿠폰입니다."),
     NOT_FOUND_COUPON_POLICY(400, "쿠폰 정책이 없습니다."),

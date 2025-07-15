@@ -24,10 +24,10 @@ import java.util.UUID;
 
 /**
  * 쿠폰 발급 로직을 쿠폰 컨슈머로 위임
- *
+ * <p>
  * 프로듀서에서 쿠폰 발급 요청에 대한 메시지를 쓰고
  * 컨슈머에서 해당 메시지를 읽어서 issue() 호출
- *
+ * <p>
  * 이렇게 구현할 시 CouponService에서 많은 요청을 받아도 실제 발급하는 요청은 레디스에서
  * 비즈니스 로직을 처리하고 실제 db발급 처리하는 부분은 컨슈머로 위임해서 순차적으로 db에 쌓이는 비동기 구조
  */
@@ -85,7 +85,7 @@ public class CouponService {
 
             outboxEventPublisher.publishCouponIssueRequest(message);
             log.info("Coupon issue request published - policyId: {}, userId: {}", policyId, userId);
-        }finally {
+        } finally {
             couponLockRepository.unlock(lock);
         }
     }
@@ -159,5 +159,12 @@ public class CouponService {
 
     private String generateCouponCode() {
         return UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    @Transactional(readOnly = true)
+    public CouponResponse.Response getCoupon(Long couponId, Long userId) {
+        Coupon coupon = couponRepository.findByIdAndUserId(couponId, userId)
+                .orElseThrow(() -> new CustomGlobalException(ErrorType.COUPON_NOT_FOUND));
+        return CouponResponse.Response.from(coupon);
     }
 }
