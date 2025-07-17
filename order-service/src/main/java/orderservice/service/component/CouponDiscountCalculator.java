@@ -1,7 +1,9 @@
-package orderservice.component;
+package orderservice.service.component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import orderservice.common.exception.CustomGlobalException;
+import orderservice.common.exception.ErrorType;
 import orderservice.entity.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,5 +62,22 @@ public class CouponDiscountCalculator {
                     }
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public BigDecimal calculateDiscount(BigDecimal originalAmount, String discountType, BigDecimal discountValue) {
+        switch (discountType.toUpperCase()) {
+            case "RATE_DISCOUNT":
+                // 퍼센트 할인: 원금 * (할인율 / 100)
+                return originalAmount.multiply(discountValue).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+
+            case "FIXED_DISCOUNT":
+                // 고정 금액 할인
+                BigDecimal discount = discountValue;
+                // 할인 금액이 원금보다 클 수 없음
+                return discount.compareTo(originalAmount) > 0 ? originalAmount : discount;
+
+            default:
+                throw new CustomGlobalException(ErrorType.NOT_FOUND_DISCOUNT_TYPE);
+        }
     }
 }
