@@ -2,13 +2,17 @@ package orderservice.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.extern.slf4j.Slf4j;
 import orderservice.common.BaseEntity;
+import orderservice.common.exception.CustomGlobalException;
+import orderservice.common.exception.ErrorType;
 import orderservice.service.dto.OrderRequest;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Getter
 @Entity
 @Table(name = "orders")
@@ -25,6 +29,8 @@ public class Order extends BaseEntity {
     private Long timeSaleId;
     private BigDecimal totalAmount;
     private BigDecimal discountAmount;
+
+    @Setter
     private BigDecimal pointAmount;
     private BigDecimal finalAmount;
 
@@ -63,59 +69,66 @@ public class Order extends BaseEntity {
     public void setTotalAmount(BigDecimal totalAmount) {
         this.totalAmount = totalAmount;
     }
-
-    // 쿠폰 할인 적용
-    public void applyCouponDiscount(BigDecimal discount) {
-        this.discountAmount = discount;
-        calculateFinalAmount();
-    }
-
-    // 포인트 사용 금액 적용
-    public void applyPointDiscount(Long pointAmount) {
-        this.pointAmount = new BigDecimal(pointAmount);
-        calculateFinalAmount();
-    }
-
-    // 최종 결제 금액 계산
-    private void calculateFinalAmount() {
-        BigDecimal afterCoupon = totalAmount.subtract(discountAmount != null ? discountAmount : BigDecimal.ZERO);
-        this.finalAmount = afterCoupon.subtract(pointAmount != null ? pointAmount : BigDecimal.ZERO);
-
-        // 최종 금액이 0보다 작으면 0으로 설정
-        if (this.finalAmount.compareTo(BigDecimal.ZERO) < 0) {
-            this.finalAmount = BigDecimal.ZERO;
-        }
-    }
-
-    // 쿠폰 할인 후 금액 (포인트 차감 전)
-    public BigDecimal getTotalAmountAfterDiscount() {
-        BigDecimal afterDiscount = totalAmount.subtract(discountAmount != null ? discountAmount : BigDecimal.ZERO);
-        return afterDiscount.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : afterDiscount;
-    }
-
-    public boolean isOwnedBy(Long userId){
-        return this.userId.equals(userId);
-    }
-
-    public boolean isCancelled(){
-        return this.status == OrderStatus.CANCELLED;
-    }
-
-    public boolean isShippedOrDeliveredOrRefunded() {
-        return this.getStatus() == OrderStatus.SHIPPED
-                || this.getStatus() == OrderStatus.DELIVERED
-                || this.getStatus() == OrderStatus.REFUNDED;
-    }
-
     public boolean hasPointsUsed() {
         return this.getPointAmount() != null;
-    }
-
-    public void setFinalAmount(BigDecimal finalAmount) {
-        this.finalAmount = finalAmount;
     }
 
     public void setDiscountAmount(BigDecimal discountAmount) {
         this.discountAmount = discountAmount;
     }
+
+    public void recalculateAmounts() {
+        // 쿠폰 할인 총액 계산
+        BigDecimal totalDiscountAmount = this.orderItems.stream()
+                .filter(OrderItem::hasDiscount)
+                .map(OrderItem::getDiscountPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        this.discountAmount = totalDiscountAmount;
+
+        // 실제 상품 지불 금액 계산
+        BigDecimal actualItemsAmount = this.orderItems.stream()
+                .map(OrderItem::getActualPaymentAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // 포인트 할인 적용하여 최종 금액 계산
+        BigDecimal pointDiscount = this.pointAmount != null ? this.pointAmount : BigDecimal.ZERO;
+        this.finalAmount = actualItemsAmount.subtract(pointDiscount);
+
+        // 음수 방지
+        if (this.finalAmount.compareTo(BigDecimal.ZERO) < 0) {
+            this.finalAmount = BigDecimal.ZERO;
+        }
+
+        log.info("주문 금액 재계산 완료 - 주문ID: {}, 쿠폰할인: {}원, 포인트할인: {}원, 최종금액: {}원",
+                this.id, totalDiscountAmount, pointDiscount, this.finalAmount);
+    }
+
+    public void applyPointDiscount(BigDecimal pointAmount) {
+        if (pointAmount == null || pointAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new CustomGlobalException(ErrorType.NOT_ENOUGH_POINT);
+        }
+
+        this.pointAmount = pointAmount;
+    }
+
+    public void applyCouponToProduct(Long productId, Long productOptionId, Long couponId, BigDecimal discountAmount) {
+        OrderItem targetItem = findOrderItem(productId, productOptionId);
+        targetItem.applyCouponDiscount(couponId, discountAmount);
+        recalculateAmounts();
+
+        log.info("특정 상품에 쿠폰 적용 - 주문ID: {}, 상품ID: {}, 쿠폰ID: {}",
+                this.id, productId, couponId);
+    }
+
+    private OrderItem findOrderItem(Long productId, Long productOptionId) {
+        return this.orderItems.stream()
+                .filter(item -> item.getProductId().equals(productId)
+                        && item.getProductOptionId().equals(productOptionId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        String.format("해당 상품을 찾을 수 없습니다 - productId: %d, optionId: %d",
+                                productId, productOptionId)));
+    }
 }
+
