@@ -10,6 +10,7 @@ import orderservice.client.dto.PointResponse;
 import orderservice.common.exception.CustomGlobalException;
 import orderservice.common.exception.ErrorType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @Slf4j
 @Service
@@ -25,6 +26,19 @@ public class PointServiceClient {
 
     public PointResponse useFallback(PointRequest.Use request, Exception ex) {
         log.error("Failed to use Point {}: {}", request, ex.getMessage());
+        if (ex instanceof FeignException) {
+            throw (FeignException) ex;
+        }
+        throw new CustomGlobalException(ErrorType.POINT_SERVICE_UNAVAILABLE);
+    }
+
+    @CircuitBreaker(name = "pointService", fallbackMethod = "earnFallback")
+    public PointResponse earn(PointRequest.Earn request) {
+        return pointClient.earn(request);
+    }
+
+    public PointResponse earnFallback(PointRequest.Earn request, Exception ex) {
+        log.error("Failed to earn Point {}: {}", request.getAmount(), ex.getMessage());
         if (ex instanceof FeignException) {
             throw (FeignException) ex;
         }
