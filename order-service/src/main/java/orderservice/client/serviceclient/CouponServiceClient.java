@@ -66,4 +66,19 @@ public class CouponServiceClient {
         // 다른 예외만 CustomGlobalException으로 변환
         throw new CustomGlobalException(ErrorType.COUPON_SERVICE_UNAVAILABLE);
     }
+
+    @CircuitBreaker(name = "couponService", fallbackMethod = "cancelCouponFallback")
+    public ResponseEntity<CouponResponse.Response> cancelCoupon(Long couponId) {
+        return couponClient.cancelCoupon(couponId);
+    }
+
+    private CouponResponse.Response cancelCouponFallback(Long couponId, Exception ex) {
+        log.error("Failed to cancel coupon {}: userId: {}, {}", couponId, ex.getMessage());
+
+        if (ex instanceof FeignException) {
+            throw (FeignException) ex;
+        }
+
+        throw new CustomGlobalException(ErrorType.COUPON_SERVICE_UNAVAILABLE);
+    }
 }

@@ -1,10 +1,11 @@
 package orderservice.client;
 
-import orderservice.client.dto.CouponRequest;
 import orderservice.client.dto.CouponResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 
 @FeignClient(value = "coupon-service")
 public interface CouponClient {
@@ -20,4 +21,7 @@ public interface CouponClient {
 
     @GetMapping("/api/v3/coupons/{couponId}/{userId}")
     CouponResponse.Response getCoupon(@PathVariable Long couponId,@PathVariable Long userId);
+
+    @PostMapping("/api/v3/coupons/{couponId}/cancel")
+    ResponseEntity<CouponResponse.Response> cancelCoupon(@PathVariable Long couponId);
 }
