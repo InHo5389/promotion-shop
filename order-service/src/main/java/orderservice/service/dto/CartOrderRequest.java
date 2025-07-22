@@ -1,6 +1,7 @@
 package orderservice.service.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -32,4 +33,7 @@ public class CartOrderRequest {
     private String paymentMethod;
 
     private List<ProductCouponInfo> productCoupons;
+
+    @Min(value = 0, message = "포인트 사용 금액은 0 이상이어야 합니다")
+    private Long pointAmount;
 }

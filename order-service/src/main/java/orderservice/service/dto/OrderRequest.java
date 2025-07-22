@@ -2,14 +2,11 @@ package orderservice.service.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.util.List;
 
 @Getter
 @Builder
@@ -19,8 +16,7 @@ public class OrderRequest {
     @NotNull(message = "사용자 ID는 필수입니다.")
     private Long userId;
 
-    @NotEmpty(message = "주문 상품 목록은 비어있을 수 없습니다.")
-    private List<OrderItemRequest> items;
+    private OrderItemRequest itemRequest;
 
     @NotBlank(message = "배송 주소는 필수입니다.")
     private String address;
@@ -39,10 +35,12 @@ public class OrderRequest {
     @Min(value = 100, message = "포인트는 최소 100원 이상 사용 가능합니다")
     private Long point;
 
+    private Long timeSaleId;
+
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Cancel{
+    public static class Cancel {
         @NotNull(message = "사용자 ID는 필수입니다.")
         private Long userId;
 
