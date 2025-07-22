@@ -1,15 +1,14 @@
 package orderservice.common.handler;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import feign.FeignException;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import orderservice.common.exception.CompensationException;
 import orderservice.common.exception.CustomGlobalException;
 import orderservice.common.exception.ErrorType;
+import org.apache.commons.lang.StringUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
@@ -35,7 +34,7 @@ public class CustomExceptionHandler {
 
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ExceptionHandler(BindException.class)
-    public ResponseEntity<?> bindException(BindException e){
+    public ResponseEntity<?> bindException(BindException e) {
         HttpStatus badRequest = HttpStatus.BAD_REQUEST;
 
         String errorMessage = e.getBindingResult()
@@ -49,42 +48,21 @@ public class CustomExceptionHandler {
                 .body(new ExceptionResponse(badRequest.value(), badRequest, errorMessage));
     }
 
-    @ExceptionHandler(FeignException.class)
-    public ResponseEntity<ExceptionResponse> handleFeignException(FeignException e) {
-        log.error("Feign exception: {}", e.getMessage());
-
-        // FeignException의 status code 사용
-        int status = e.status();
+    @ExceptionHandler(CompensationException.class)
+    public ResponseEntity<ExceptionResponse> handleFeignException(CompensationException e) {
+        int status = HttpStatus.INTERNAL_SERVER_ERROR.value();
 
         return ResponseEntity.status(status)
                 .body(ExceptionResponse.builder()
                         .code(status)
-                        .message("외부 서비스 에러: " + extractErrorMessage(e))
+                        .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .message("외부 서비스 에러: " + extractCleanMessage(e.getMessage()))
                         .build());
     }
 
-    private String extractErrorMessage(FeignException e) {
-        try {
-            String content = e.contentUTF8();
-
-            log.info("=== Feign 응답 디버깅 ===");
-            log.info("Status: {}", e.status());
-            log.info("Content: {}", content);
-            log.info("========================");
-
-            if (content == null || content.trim().isEmpty()) {
-                return "응답 내용이 없습니다";
-            }
-
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode node = mapper.readTree(content);
-
-            return node.has("message") ? node.get("message").asText() : "요청 처리 실패";
-
-        } catch (Exception ex) {
-            log.error("JSON 파싱 실패", ex);
-            return "서비스 호출 실패";
-        }
+    private String extractCleanMessage(String rawMessage) {
+        String extracted = StringUtils.substringBetween(rawMessage, "\"message\":\"", "\"");
+        return extracted != null ? extracted : "요청 처리 중 오류가 발생했습니다";
     }
 
     @Getter
