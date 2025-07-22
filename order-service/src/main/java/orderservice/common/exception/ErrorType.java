@@ -16,6 +16,9 @@ public enum ErrorType {
     PRODUCT_NOT_SELL(400, "상품이 판매중이지 않습니다."),
     NOT_ENOUGH_STOCK(400, "상품재고가 부족합니다."),
     INVALID_COUPON(400, "쿠폰이 유효하지 않습니다."),
+    NOT_ENOUGH_POINT(400,"포인트 금액은 0보다 커야 합니다"),
+
+    NOT_FOUND_DISCOUNT_TYPE(400,"할인 정책을 찾을수 없습니다."),
 
     NOT_FOUND_X_USER_ID_HEADER(400, "헤더가 비어있거나 NULL입니다."),
     PRODUCT_OPTION_NOT_FOUND(400, "제품 옵션을 찾을 수 없습니다"),

@@ -1,6 +1,10 @@
 package event;
 
 import event.payload.*;
+import event.payload.compensation.CompensationCompletedPayload;
+import event.payload.compensation.CouponCompensationRequestPayload;
+import event.payload.compensation.PointCompensationRequestPayload;
+import event.payload.compensation.StockCompensationRequestPayload;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +23,12 @@ public enum EventType {
 
     POINT_USED(PointUsedEventPayload.class, Topic.POINT_USED),
     POINT_CANCELED(PointEarnedEventPayload.class, Topic.POINT_CANCELED),
-    CART_CLEARED(CartClearedEventPayload.class, Topic.CART);
+    CART_CLEARED(CartClearedEventPayload.class, Topic.CART),
+
+    STOCK_COMPENSATION_REQUEST(StockCompensationRequestPayload.class, Topic.STOCK_COMPENSATION_REQUEST),
+    COUPON_COMPENSATION_REQUEST(CouponCompensationRequestPayload.class, Topic.COUPON_COMPENSATION_REQUEST),
+    POINT_COMPENSATION_REQUEST(PointCompensationRequestPayload.class, Topic.POINT_COMPENSATION_REQUEST),
+    COMPENSATION_COMPLETED(CompensationCompletedPayload.class, Topic.COMPENSATION_COMPLETED);
 
     private final Class<? extends EventPayload> payloadClass;
     private final String topic;
@@ -45,5 +54,11 @@ public enum EventType {
         public static final String POINT_USED = "point_use";
         public static final String POINT_CANCELED = "point_cancel";
         public static final String PAYMENT = "payment";
+
+        // 보상 토픽들
+        public static final String STOCK_COMPENSATION_REQUEST = "stock_compensation_request";
+        public static final String COUPON_COMPENSATION_REQUEST = "coupon_compensation_request";
+        public static final String POINT_COMPENSATION_REQUEST = "point_compensation_request";
+        public static final String COMPENSATION_COMPLETED = "compensation_completed";
     }
 }

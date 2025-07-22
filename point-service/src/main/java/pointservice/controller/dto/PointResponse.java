@@ -1,7 +1,9 @@
 package pointservice.controller.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import pointservice.entity.Point;
 import pointservice.entity.PointType;
 
@@ -9,6 +11,8 @@ import java.time.LocalDateTime;
 
 @Getter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class PointResponse {
     private Long id;
     private Long userId;
@@ -30,6 +34,8 @@ public class PointResponse {
 
     @Getter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Balance {
         private Long userId;
         private Long balance;

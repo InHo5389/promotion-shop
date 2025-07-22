@@ -2,6 +2,7 @@ package orderservice.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.extern.slf4j.Slf4j;
 import orderservice.client.dto.ProductResponse;
 import orderservice.common.exception.CustomGlobalException;
 import orderservice.common.exception.ErrorType;
@@ -9,6 +10,7 @@ import orderservice.service.dto.OrderItemRequest;
 
 import java.math.BigDecimal;
 
+@Slf4j
 @Getter
 @Setter
 @Entity
@@ -56,29 +58,25 @@ public class OrderItem {
                 .build();
     }
 
-    // 쿠폰 할인 적용 메서드
-    public void applyCouponDiscount(Long couponId, BigDecimal discountAmount) {
+    public void applyCouponDiscount(Long couponId, BigDecimal discountPrice) {
+
         this.couponId = couponId;
-        this.discountPrice = discountAmount;
-        calculateDiscountedPrice();
+        this.discountPrice = discountPrice;
+
+        BigDecimal discountedPrice = this.totalPrice.subtract(discountPrice);
+        this.discountedTotalPrice = discountedPrice.compareTo(BigDecimal.ZERO) < 0
+                ? BigDecimal.ZERO : discountedPrice;
+
+        log.info("쿠폰 할인 적용 - 상품ID: {}, 쿠폰ID: {}, 할인금액: {}원, 할인후가격: {}원",
+                this.productId, couponId, discountPrice, this.discountedTotalPrice);
     }
 
-    // 할인된 가격 계산 메서드
-    private void calculateDiscountedPrice() {
-        // 할인 금액이 없으면 원래 가격 사용
-        if (discountPrice == null || discountPrice.compareTo(BigDecimal.ZERO) <= 0) {
-            this.discountedTotalPrice = this.totalPrice;
-            return;
-        }
+    public BigDecimal getActualPaymentAmount() {
+        return this.discountedTotalPrice != null ? this.discountedTotalPrice : this.totalPrice;
+    }
 
-        // 할인 적용 후 가격 계산
-        BigDecimal afterDiscount = this.totalPrice.subtract(this.discountPrice);
-
-        // 음수가 되지 않도록 보장
-        if (afterDiscount.compareTo(BigDecimal.ZERO) < 0) {
-            afterDiscount = BigDecimal.ZERO;
-        }
-
-        this.discountedTotalPrice = afterDiscount;
+    public boolean hasDiscount() {
+        return this.couponId != null && this.discountPrice != null
+                && this.discountPrice.compareTo(BigDecimal.ZERO) > 0;
     }
 }
