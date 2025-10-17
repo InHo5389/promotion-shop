@@ -36,6 +36,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation group: 'org.redisson', name: 'redisson-spring-boot-starter', version: '3.44.0'
 	implementation 'org.springframework.kafka:spring-kafka'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
 	// spring cloud
 	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
@@ -62,6 +63,9 @@ dependencies {
 
 	// kafka
 	implementation 'org.springframework.kafka:spring-kafka'
+
+	// monotoring
+	implementation 'io.micrometer:micrometer-registry-prometheus'
 }
 
 dependencyManagement {
