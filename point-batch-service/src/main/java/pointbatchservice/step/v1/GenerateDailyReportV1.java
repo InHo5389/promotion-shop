@@ -11,6 +11,7 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JpaPagingItemReader;
 import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -60,11 +61,14 @@ public class GenerateDailyReportV1 {
      */
     @Bean
     @StepScope
-    public JpaPagingItemReader<Point> pointReaderV1() {
+    public JpaPagingItemReader<Point> pointReaderV1(
+            @Value("#{jobParameters['targetDate']}") String targetDate
+    ) {
+
+        LocalDateTime date = LocalDateTime.parse(targetDate);
         HashMap<String, Object> parameters = new HashMap<>();
-        LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
-        parameters.put("startTime", yesterday.withHour(0).withMinute(0).withSecond(0));
-        parameters.put("endTime", yesterday.withHour(23).withMinute(59).withSecond(59));
+        parameters.put("startTime", date.withHour(0).withMinute(0).withSecond(0));
+        parameters.put("endTime", date.withHour(23).withMinute(59).withSecond(59));
 
         return new JpaPagingItemReaderBuilder<Point>()
                 .name("pointReader")
