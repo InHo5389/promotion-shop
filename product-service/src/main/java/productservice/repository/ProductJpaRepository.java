@@ -1,5 +1,7 @@
 package productservice.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -24,4 +26,17 @@ public interface ProductJpaRepository extends JpaRepository<Product, Long> {
             "LEFT JOIN FETCH o.stock " +
             "WHERE p.id IN :ids")
     List<Product> findAllWithCategoryOptionsAndStockByIdIn(@Param("ids") List<Long> ids);
+
+    @Query("""
+            SELECT p FROM Product p
+            WHERE p.status = 'ACTIVE'
+            AND (:keyword IS NULL OR p.name LIKE CONCAT('%', :keyword, '%'))
+            AND (:lastId IS NULL OR p.id < :lastId)
+            ORDER BY p.id ASC
+            """)
+    List<Product> searchProducts(
+            @Param("keyword") String keyword,
+            @Param("lastId") Long lastId,
+            Pageable pageable
+    );
 }
