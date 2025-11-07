@@ -10,10 +10,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PointUsedEventPayload implements EventPayload {
-
+public class PaymentFailedEventPayload implements EventPayload {
     private Long orderId;
     private Long userId;
-    private Long pointBalance;
-
+    private String reason;
 }
