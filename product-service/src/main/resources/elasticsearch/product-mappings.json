@@ -1,0 +1,55 @@
+{
+  "properties": {
+    "id": {
+      "type": "keyword"
+    },
+    "name": {
+      "type": "text",
+      "analyzer": "nori",
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        }
+      }
+    },
+    "price": {
+      "type": "double"
+    },
+    "image": {
+      "type": "keyword"
+    },
+    "categoryId": {
+      "type": "long"
+    },
+    "categoryName": {
+      "type": "text",
+      "analyzer": "nori"
+    },
+    "options": {
+      "type": "nested",
+      "properties": {
+        "id": {
+          "type": "long"
+        },
+        "size": {
+          "type": "keyword"
+        },
+        "color": {
+          "type": "keyword"
+        },
+        "additionalPrice": {
+          "type": "double"
+        },
+        "availableQuantity": {
+          "type": "integer"
+        }
+      }
+    },
+    "status": {
+      "type": "keyword"
+    },
+    "createdAt": {
+      "type": "date"
+    }
+  }
+}
