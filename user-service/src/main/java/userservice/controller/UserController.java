@@ -10,6 +10,7 @@ import userservice.controller.dto.UserResponse;
 import userservice.entity.User;
 import userservice.entity.UserLoginHistory;
 import userservice.service.UserService;
+import userservice.service.dto.UserDto;
 
 import java.util.List;
 
@@ -22,10 +23,14 @@ public class UserController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> create(@Valid @RequestBody UserRequest.Signup request) {
-        User user = userService.createUser(request.getEmail(), request.getPassword(), request.getName());
+        UserDto userDto = userService.createUser(request.getEmail(), request.getPassword(), request.getName());
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(UserResponse.Response.from(user));
+                .body(UserResponse.Response.builder()
+                        .id(userDto.getId())
+                        .name(userDto.getName())
+                        .email(userDto.getEmail())
+                        .build());
     }
 
     /**
@@ -34,9 +39,13 @@ public class UserController {
      */
     @GetMapping("/me")
     public ResponseEntity<?> getProfile(@RequestHeader("X-USER-ID") Long userId) {
-        User user = userService.getUserById(userId);
+        UserDto userDto = userService.getUserById(userId);
 
-        return ResponseEntity.ok(UserResponse.Response.from(user));
+        return ResponseEntity.ok(UserResponse.Response.builder()
+                .id(userDto.getId())
+                .name(userDto.getName())
+                .email(userDto.getEmail())
+                .build());
     }
 
     @PutMapping("/me")
@@ -58,7 +67,7 @@ public class UserController {
     }
 
     @GetMapping("/me/login-history")
-    public ResponseEntity<List<UserLoginHistory>> getLoginHistory(@RequestHeader("X-USER-ID") Long userId){
+    public ResponseEntity<List<UserLoginHistory>> getLoginHistory(@RequestHeader("X-USER-ID") Long userId) {
 
         return ResponseEntity.ok(userService.getUserLoginHistory(userId));
     }

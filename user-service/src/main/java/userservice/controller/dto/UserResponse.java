@@ -21,16 +21,18 @@ public class UserResponse {
         private Long id;
         private String email;
         private String name;
-        private String token;
+        private String accessToken;
+        private String refreshToken;
         private LocalDateTime createdAt;
         private LocalDateTime modifiedAt;
 
-        public static Login from(User user,String token){
+        public static Login from(User user,String accessToken,String refreshToken){
             return Login.builder()
                     .id(user.getId())
                     .email(user.getEmail())
                     .name(user.getName())
-                    .token(token)
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken)
                     .createdAt(user.getCreatedAt())
                     .modifiedAt(user.getModifiedAt())
                     .build();
