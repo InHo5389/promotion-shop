@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import userservice.controller.dto.UserRequest;
 import userservice.controller.dto.UserResponse;
 import userservice.entity.User;
+import userservice.repository.UserRepository;
 import userservice.service.JwtService;
 import userservice.service.UserService;
 
@@ -27,10 +28,8 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody UserRequest.Login request) {
-        User user = userService.authenticate(request.getEmail(), request.getPassword());
-        String token = jwtService.generateToken(user);
 
-        return ResponseEntity.ok(UserResponse.Login.from(user, token));
+        return ResponseEntity.ok(userService.login(request));
     }
 
     @PostMapping("/validate-token")
@@ -44,6 +43,6 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> refreshToken(@Valid @RequestBody UserRequest.Token request) {
         String newToken = jwtService.refreshToken(request.getToken());
 
-        return ResponseEntity.ok(Collections.singletonMap("token", newToken));
+        return ResponseEntity.ok(Collections.singletonMap("refreshToken", newToken));
     }
 }

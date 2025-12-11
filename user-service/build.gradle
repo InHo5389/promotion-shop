@@ -66,6 +66,9 @@ dependencies {
 	// kafka
 	implementation 'org.springframework.kafka:spring-kafka'
 
+	// vault
+	implementation("org.springframework.vault:spring-vault-core:3.2.0")
+
 	implementation project(':common:event')
 }
 

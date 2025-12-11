@@ -31,6 +31,8 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
+    private String refreshToken;
+
     public static User create(String email, String encodedPassword, String name) {
         User user = new User();
         user.email = email;
@@ -46,5 +48,9 @@ public class User extends BaseEntity {
 
     public void changePassword(String password) {
         this.password = password;
+    }
+
+    public void saveRefreshToken(String refreshToken) {
+        this.refreshToken = refreshToken;
     }
 }
