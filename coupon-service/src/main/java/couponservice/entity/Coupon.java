@@ -37,6 +37,9 @@ public class Coupon extends BaseEntity {
     private LocalDateTime usedAt;
     private LocalDateTime createdAt;
 
+    @Version
+    private Long version = 0L;
+
     public static Coupon create(CouponPolicy couponPolicy, Long currentUserId, String couponCode) {
         return Coupon.builder()
                 .couponPolicy(couponPolicy)
@@ -47,19 +50,41 @@ public class Coupon extends BaseEntity {
                 .build();
     }
 
-    public void use(Long orderId) {
-        if (this.status == CouponStatus.USED){
-            throw new CustomGlobalException(ErrorType.COUPON_ALREADY_USED);
+    public void reserve(Long orderId) {
+        if (this.status != CouponStatus.AVAILABLE) {
+            throw new CustomGlobalException(ErrorType.COUPON_NOT_AVAILABLE);
         }
-
-        if (isExpired()){
+        if (isExpired()) {
             throw new CustomGlobalException(ErrorType.COUPON_EXPIRED);
         }
-
-        this.status = CouponStatus.USED;
+        this.status = CouponStatus.RESERVED;
         this.orderId = orderId;
+    }
+
+    public void confirmReservation() {
+        if (this.status != CouponStatus.RESERVED) {
+            throw new CustomGlobalException(ErrorType.COUPON_NOT_RESERVED);
+        }
+        this.status = CouponStatus.USED;
         this.usedAt = LocalDateTime.now();
     }
+
+    public void cancelReservation() {
+        if (this.status != CouponStatus.RESERVED) {
+            throw new CustomGlobalException(ErrorType.COUPON_NOT_RESERVED);
+        }
+        this.status = CouponStatus.AVAILABLE;
+        this.orderId = null;
+    }
+
+    public void rollbackConfirmation() {
+        if (this.status != CouponStatus.USED) {
+            throw new RuntimeException("사용된 쿠폰이 아닙니다.");
+        }
+        this.status = CouponStatus.AVAILABLE;
+        this.usedAt = null;
+    }
+
 
     public void cancel(){
         if (this.status != CouponStatus.USED){

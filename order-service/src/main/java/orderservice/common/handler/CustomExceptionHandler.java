@@ -1,5 +1,6 @@
 package orderservice.common.handler;
 
+import feign.FeignException;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -57,6 +58,25 @@ public class CustomExceptionHandler {
                         .code(status)
                         .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR)
                         .message("외부 서비스 에러: " + extractCleanMessage(e.getMessage()))
+                        .build());
+    }
+
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<ExceptionResponse> handleFeignException(FeignException e) {
+        log.error("Feign 호출 실패: status={}, message={}", e.status(), e.getMessage());
+
+        // Feign 응답에서 메시지 추출
+        String cleanMessage = extractCleanMessage(e.contentUTF8());
+
+        // Feign 상태코드 그대로 반환
+        HttpStatus httpStatus = HttpStatus.valueOf(e.status());
+
+        return ResponseEntity
+                .status(httpStatus)
+                .body(ExceptionResponse.builder()
+                        .code(httpStatus.value())
+                        .httpStatus(httpStatus)
+                        .message(cleanMessage)
                         .build());
     }
 

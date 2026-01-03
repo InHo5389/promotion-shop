@@ -26,5 +26,9 @@ public class CouponResponse {
         private String couponStatus;
         private Long orderId;
         private LocalDateTime usedAt;
+
+        public boolean isAvailable() {
+            return false;
+        }
     }
 }
