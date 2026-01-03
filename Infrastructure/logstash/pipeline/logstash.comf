@@ -1,0 +1,31 @@
+input {
+  tcp {
+    port => 5044
+    codec => json
+  }
+}
+
+output {
+  elasticsearch {
+        # 현재 단일 노드이지만, 향후 클러스터 확장 대비 배열 형식 유지
+        hosts => ["elasticsearch:9200"]
+
+        # 인덱스 전략
+        index => "application-logs-%{+YYYY.MM.dd}"
+
+        # 재시도 설정 (Elasticsearch 장애 대응)
+        retry_on_conflict => 5
+        retry_initial_interval => 2
+        retry_max_interval => 64
+
+        # 배치 설정 (성능 최적화)
+        flush_size => 500
+        idle_flush_time => 5
+
+        # 타임아웃
+        request_timeout => 60
+  }
+  stdout {
+    codec => rubydebug
+  }
+}
