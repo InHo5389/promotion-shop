@@ -10,7 +10,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderRollbackEventPayload implements EventPayload {
+public class OrderConfirmPayload implements EventPayload {
+
     private Long orderId;
     private Long userId;
 }

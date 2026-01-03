@@ -10,11 +10,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CouponAppliedEventPayload implements EventPayload {
+public class PointConfirmPayload implements EventPayload {
 
     private Long orderId;
     private Long userId;
-    private Long couponId;
-    private Long productId;
-    private Long productOptionId;
 }

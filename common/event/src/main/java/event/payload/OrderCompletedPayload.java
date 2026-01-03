@@ -1,4 +1,4 @@
-package event.payload.compensation;
+package event.payload;
 
 import event.EventPayload;
 import lombok.AllArgsConstructor;
@@ -10,11 +10,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CouponCompensationRequestPayload implements EventPayload {
+public class OrderCompletedPayload implements EventPayload {
 
-    private String sagaId;
     private Long orderId;
     private Long userId;
-    private Long couponId;
-    private Long timestamp;
 }
