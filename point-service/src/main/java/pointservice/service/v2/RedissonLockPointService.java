@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import pointservice.common.exception.CustomGlobalException;
 import pointservice.common.exception.ErrorType;
 import pointservice.entity.Point;
+import pointservice.repository.PointJpaRepository;
 import pointservice.service.PointRepository;
 
 import java.util.concurrent.TimeUnit;
@@ -20,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 public class RedissonLockPointService {
 
     private final PointService pointService;
-    private final PointRepository pointRepository;
+    private final PointJpaRepository pointRepository;
     private final RedissonClient redissonClient;
 
     private static final String POINT_LOCK_PREFIX = "point:lock:";

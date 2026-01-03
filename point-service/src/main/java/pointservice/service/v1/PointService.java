@@ -11,6 +11,7 @@ import pointservice.common.exception.ErrorType;
 import pointservice.entity.Point;
 import pointservice.entity.PointBalance;
 import pointservice.entity.PointType;
+import pointservice.repository.PointJpaRepository;
 import pointservice.service.PointBalanceRepository;
 import pointservice.service.PointRepository;
 
@@ -18,7 +19,7 @@ import pointservice.service.PointRepository;
 @RequiredArgsConstructor
 public class PointService {
 
-    private final PointRepository pointRepository;
+    private final PointJpaRepository pointRepository;
     private final PointBalanceRepository pointBalanceRepository;
 
     @Transactional

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import pointservice.common.BaseEntity;
 import pointservice.common.exception.CustomGlobalException;
@@ -37,8 +38,8 @@ public class Point extends BaseEntity {
     @JoinColumn(name = "point_balance_id")
     private PointBalance pointBalance;
 
-    //    @Version
-    private Long version;
+    @Setter
+    private Long orderId;
 
     @Builder
     public Point(Long userId, Long amount, PointType type, Long balanceSnapshot, PointBalance pointBalance) {
