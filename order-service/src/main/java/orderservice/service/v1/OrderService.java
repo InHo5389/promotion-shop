@@ -1,466 +1,461 @@
 package orderservice.service.v1;
 
+import event.EventType;
+import event.payload.OrderConfirmPayload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import orderservice.client.dto.*;
-import orderservice.client.serviceclient.CartServiceClient;
 import orderservice.client.serviceclient.CouponServiceClient;
 import orderservice.client.serviceclient.PointServiceClient;
 import orderservice.client.serviceclient.ProductServiceClient;
-import orderservice.common.exception.CompensationException;
 import orderservice.common.exception.CustomGlobalException;
 import orderservice.common.exception.ErrorType;
-import orderservice.entity.Order;
-import orderservice.entity.OrderItem;
-import orderservice.entity.OrderStatus;
-import orderservice.service.OrderRepository;
-import orderservice.service.component.CouponDiscountCalculator;
-import orderservice.service.dto.CartOrderRequest;
-import orderservice.service.dto.OrderRequest;
-import orderservice.service.dto.OrderResponse;
-import orderservice.service.dto.ProductCouponInfo;
+import orderservice.entity.*;
+import orderservice.repository.CompensationRegistryJpaRepository;
+import orderservice.repository.OrderJpaRepository;
+import orderservice.service.dto.request.OrderItemInfo;
+import orderservice.service.dto.request.OrderRequest;
+import orderservice.service.dto.response.OrderResponse;
+import orderservice.service.kafka.producer.OrderEventProducer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import outboxmessagerelay.OutboxEventPublisher;
 
-import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
 
-    private final OrderRepository orderRepository;
+    private final OrderJpaRepository orderRepository;
     private final ProductServiceClient productClient;
     private final CouponServiceClient couponClient;
     private final PointServiceClient pointClient;
-    private final CartServiceClient cartClient;
-    private final SagaTransactionService sagaTransactionService;
-    private final CompensationService compensationService;
-    private final CouponDiscountCalculator couponDiscountCalculator;
-
-    public OrderResponse order(OrderRequest request) {
-        String sagaId = UUID.randomUUID().toString();
-        log.info("Starting order processing - sagaId: {}, userId: {}", sagaId, request.getUserId());
-
-        Order order = null;
-
-        try {
-            ProductResponse product = productClient.getProduct(request.getItemRequest().getProductId());
-            order = createOrder(request, product);
-
-            sagaTransactionService.createSaga(sagaId, order);
-
-            decreaseStock(sagaId, request);
-            useCoupon(sagaId, request, order);
-            usePoint(sagaId, request, order);
-
-            order.recalculateAmounts();
-            orderRepository.save(order);
-            sagaTransactionService.markCompleted(sagaId);
-
-            log.info("Order completed successfully - sagaId: {}, orderId: {}", sagaId, order.getId());
-            return OrderResponse.from(order);
-
-        } catch (Exception e) {
-            log.error("Order processing failed - sagaId: {}", sagaId);
-
-            // 실패 처리
-            handleOrderFailure(sagaId, order, e);
-
-            throw new CompensationException("일반 주문 처리 실패: " + e.getMessage());
-        }
-    }
+    private final CartService cartService;
+    private final OrderEventProducer orderEventProducer;
+    private final OutboxEventPublisher outboxEventPublisher;
+    private final CompensationRegistryJpaRepository compensationRegistryJpaRepository;
 
     @Transactional
-    public OrderResponse cancel(Long orderId, Long userId) {
-        String sagaId = UUID.randomUUID().toString();
-        log.info("Cancelling order orderId={}, userId={}", orderId, userId);
+    public OrderResponse.Create createOrderFromCart(Long userId, OrderRequest.Create request) {
+        log.info("===== 장바구니 전체 주문 생성 시작 ===== userId: {}", userId);
 
-        Order order = null;
+        // 1. Redis에서 장바구니 전체 조회
+        List<CartItemRedis> cartItems = cartService.getCartItems(userId);
+        log.info("장바구니 조회 완료 - userId: {}, itemCount: {}", userId, cartItems.size());
+        if (cartItems.isEmpty()) {
+            throw new CustomGlobalException(ErrorType.EMPTY_CART);
+        }
+
+        // 2. 상품 정보 조회 및 금액 계산
+        List<OrderItemInfo> orderItemInfos = calculateOrderItemsFromCart(cartItems);
+        int totalAmount = orderItemInfos.stream()
+                .mapToInt(OrderItemInfo::getTotalPrice)
+                .sum();
+        log.info("주문 금액 계산 완료 - totalAmount: {}", totalAmount);
+
+        // 3. 주문 엔티티 생성 (PENDING)
+        Order order = createPendingOrder(userId, totalAmount, orderItemInfos, request);
+        log.info("주문 엔티티 생성 완료 - orderId: {}, status: PENDING", order.getId());
+
+        int couponDiscount = 0;
+        int pointDiscount = 0;
+
         try {
-            order = orderRepository.findById(orderId)
-                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_ORDER));
+            // 4. 재고 예약 (동기 Feign)
+            reserveStock(order);
 
-            validateOrder(orderId, userId, order);
-            restoreStock(sagaId, order);
-            restoreCoupon(sagaId, order);
-            restorePoint(sagaId, order);
+            // 5. 쿠폰 예약 (동기 Feign)
+            couponDiscount = reserveCoupons(order);
 
-            order.setStatus(OrderStatus.CANCELLED);
-            log.info("Order successfully cancelled orderId={}", orderId);
-            return OrderResponse.from(order);
-        } catch (Exception e) {
-            log.error("Order Cancel Processing Failed - sagaId: {}", sagaId, e.getMessage());
-            handleOrderFailure(sagaId, order, e);
+            // 6. 포인트 예약 (동기 Feign)
+            pointDiscount = reservePoint(userId, order, request.getUsePoint());
 
-            throw new CompensationException("주문 취소 처리 실패: " + e.getMessage());
-        }
-    }
-
-    private void restorePoint(String sagaId, Order order) {
-        try {
-            if (order.hasPointsUsed()) {
-                Long pointAmount = order.getPointAmount().longValue();
-
-                log.debug("Restoring points - sagaId: {}, pointAmount: {}P", sagaId, pointAmount);
-
-                pointClient.earn(PointRequest.Earn.builder().amount(pointAmount).build());
-                sagaTransactionService.markPointUsed(sagaId, pointAmount);
-
-                log.info("Points restored - sagaId: {}, pointAmount: {}P", sagaId, pointAmount);
-            } else {
-                log.debug("No points to restore - sagaId: {}", sagaId);
-            }
-        } catch (Exception e) {
-            throw new CompensationException("포인트 복구 실패: " + e.getMessage());
-        }
-    }
-
-    private void restoreCoupon(String sagaId, Order order) {
-        try {
-            List<Long> usedCouponIds = new ArrayList<>();
-
-            for (OrderItem item : order.getOrderItems()) {
-                if (item.getCouponId() != null) {
-                    usedCouponIds.add(item.getCouponId());
-                }
-            }
-
-            if (!usedCouponIds.isEmpty()) {
-                for (Long couponId : usedCouponIds) {
-                    log.debug("Restoring coupon - sagaId: {}, couponId: {}", sagaId, couponId);
-
-                    couponClient.cancelCoupon(couponId);
-                    sagaTransactionService.markCouponUsed(sagaId, couponId);
-
-                    log.info("Coupon restored - sagaId: {}, couponId: {}", sagaId, couponId);
-                }
-            }
-        } catch (Exception e) {
-            sagaTransactionService.markCouponUseFailed(sagaId, e.getMessage());
-            throw new CompensationException("쿠폰 복구 실패: " + e.getMessage());
-        }
-    }
-
-    private void restoreStock(String sagaId, Order order) {
-        try {
-            List<ProductOptionRequest.StockUpdate> stockUpdates = order.getOrderItems().stream()
-                    .map(item -> ProductOptionRequest.StockUpdate.create(
-                            item.getProductId(),
-                            item.getProductOptionId(),
-                            item.getQuantity()))
-                    .collect(Collectors.toList());
-
-            if (!stockUpdates.isEmpty()) {
-                log.debug("Restoring stock after cancellation orderId={}, itemCount={}",
-                        order.getId(), stockUpdates.size());
-
-                productClient.increaseStock(stockUpdates);
-                sagaTransactionService.markStockDecreased(sagaId); // 재고 복구 완료 표시
-
-                log.info("Stock restored successfully - sagaId: {}, orderId: {}", sagaId, order.getId());
-            }
-        } catch (Exception e) {
-            sagaTransactionService.markStockDecreaseFailed(sagaId, e.getMessage());
-            throw new CompensationException("재고 복구 실패: " + e.getMessage());
-        }
-    }
-
-    private void validateOrder(Long orderId, Long userId, Order order) {
-        if (!order.getUserId().equals(userId)) {
-            log.info("Cancel permission denied orderId={}, orderUserId={}, requestUserId={}",
-                    orderId, order.getUserId(), userId);
-            throw new CustomGlobalException(ErrorType.NO_PERMISSION_TO_CANCEL_ORDER);
-        }
-
-        if (order.getStatus() == OrderStatus.CANCELLED) {
-            log.debug("Order already cancelled orderId={}", orderId);
-            throw new CustomGlobalException(ErrorType.ORDER_ALREADY_CANCELED);
-        }
-    }
-
-    @Transactional
-    public OrderResponse cartOrder(CartOrderRequest request) {
-        String sagaId = UUID.randomUUID().toString();
-        log.info("Starting cart order - sagaId: {}, userId: {}", sagaId, request.getUserId());
-
-        Order order = null;
-        try {
-            CartResponse cartResponse = cartClient.getCart(request.getUserId());
-            if (cartResponse.getItems().isEmpty()) {
-                throw new CustomGlobalException(ErrorType.CART_EMPTY);
-            }
-
-            order = createOrderFromCart(request, cartResponse);
-            order = orderRepository.save(order);
-            log.info("Order created - orderId: {}", order.getId());
-
-            sagaTransactionService.createSaga(sagaId, order);
-
-            cartDecreaseStock(sagaId, cartResponse);
-            cartUseCoupons(sagaId, order, request);
-            cartUsePoints(sagaId, order, request);
-            order.recalculateAmounts();
+            // 7. 최종 금액 계산 및 할인 적용
+            int finalAmount = totalAmount - couponDiscount - pointDiscount;
+            order.applyDiscounts(couponDiscount, pointDiscount, finalAmount);
             orderRepository.save(order);
+            log.info("할인 적용 완료 - couponDiscount: {}, pointDiscount: {}, finalAmount: {}",
+                    couponDiscount, pointDiscount, finalAmount);
 
-            cartClient.clearCart(request.getUserId());
+            // 8. 장바구니 비우기
+            cartService.clearCart(userId);
 
-            sagaTransactionService.markCompleted(sagaId);
+            log.info("===== 장바구니 주문 생성 완료 ===== orderId: {}, finalAmount: {}",
+                    order.getId(), finalAmount);
 
-            log.info("Cart order completed - sagaId: {}, orderId: {}", sagaId, order.getId());
-            return OrderResponse.from(order);
+            return OrderResponse.Create.from(order);
 
-        } catch (CustomGlobalException e) {
-            log.error("Cart order failed - sagaId: {}, getMessage: {}", sagaId, e.getMessage());
-
-            if (order != null) {
-                handleOrderFailure(sagaId, order, e);
-            }
-
+        } catch (Exception e) {
+            rollbackOrderCreation(order, couponDiscount, pointDiscount);
             throw e;
-
-        } catch (Exception e) {
-            log.error("Cart order failed - sagaId: {}, getMessage: {}", sagaId, e.getMessage());
-
-            // 실패 처리
-            handleOrderFailure(sagaId, order, e);
-            throw new CompensationException("장바구니 주문 실패: " + e.getMessage());
         }
     }
 
-    private void cartUsePoints(String sagaId, Order order, CartOrderRequest request) {
+    public void rollbackOrderCreation(Order order, int couponDiscount, int pointDiscount) {
         try {
-            if (request.getPointAmount() != null && request.getPointAmount() > 0) {
-                pointClient.use(new PointRequest.Use(request.getPointAmount()));
-                order.applyPointDiscount(BigDecimal.valueOf(request.getPointAmount()));
-                sagaTransactionService.markPointUsed(sagaId, request.getPointAmount());
+            log.error("주문 생성 실패 - orderId: {}", order.getId());
 
-                log.info("Points used successfully - sagaId: {}, amount: {}P",
-                        sagaId, request.getPointAmount());
+            productClient.cancelReservation(order.getId());
+
+            if (couponDiscount > 0) {
+                couponClient.cancelReservation(order.getId());
             }
-        } catch (Exception e) {
-            sagaTransactionService.markPointUseFailed(sagaId, e.getMessage());
-            throw new CompensationException("포인트 사용 실패: " + e.getMessage());
-        }
-    }
 
-    private void cartUseCoupons(String sagaId, Order order, CartOrderRequest request) {
-        try {
-            if (request.getProductCoupons() != null && !request.getProductCoupons().isEmpty()) {
-
-                for (ProductCouponInfo couponInfo : request.getProductCoupons()) {
-                    if (couponInfo.getCouponId() == null) {
-                        continue;
-                    }
-
-                    CouponResponse.Response coupon = couponClient.getCoupon(couponInfo.getCouponId());
-                    couponClient.useCoupon(couponInfo.getCouponId(), order.getId());
-
-                    // 할인 금액 계산 (Domain Service 활용)
-                    BigDecimal discountAmount = couponDiscountCalculator.calculateDiscountAmount(
-                            coupon.getDiscountType(),
-                            coupon.getDiscountValue(),
-                            coupon.getMaximumDiscountAmount(),
-                            getItemTotalPrice(order, couponInfo));
-
-                    order.applyCouponToProduct(
-                            couponInfo.getProductId(),
-                            couponInfo.getProductOptionId(),
-                            couponInfo.getCouponId(),
-                            discountAmount
-                    );
-
-                    sagaTransactionService.markCouponUsed(sagaId, couponInfo.getCouponId());
-
-                    log.info("Coupon applied - productId: {}, couponId: {}, discount: {}",
-                            couponInfo.getProductId(), couponInfo.getCouponId(), discountAmount);
-                }
-
-                log.info("All coupons applied successfully - sagaId: {}", sagaId);
+            if (pointDiscount > 0) {
+                pointClient.cancelReservation(order.getId());
             }
+
+            order.fail();
+            orderRepository.save(order);
         } catch (Exception e) {
-            sagaTransactionService.markCouponUseFailed(sagaId, e.getMessage());
-            throw new CompensationException("쿠폰 사용 실패: " + e.getMessage());
+            compensationRegistryJpaRepository.save(new CompensationRegistry(
+                    order.getId(), CompensationRegistry.CompensationType.ORDER_CREATE_ROLLBACK));
+            throw e;
         }
     }
 
-    private BigDecimal getItemTotalPrice(Order order, ProductCouponInfo couponInfo) {
-        return order.getOrderItems().stream()
-                .filter(item -> item.getProductId().equals(couponInfo.getProductId())
-                        && item.getProductOptionId().equals(couponInfo.getProductOptionId()))
-                .findFirst()
-                .map(OrderItem::getTotalPrice)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        String.format("해당 상품을 찾을 수 없습니다 - productId: %d, optionId: %d",
-                                couponInfo.getProductId(), couponInfo.getProductOptionId())));
-    }
+    @Transactional
+    public OrderResponse.Confirm confirmOrder(Long orderId) {
+        log.info("===== 주문 확정 처리 시작 ===== orderId: {}", orderId);
 
-    private void cartDecreaseStock(String sagaId, CartResponse cartResponse) {
-        try {
-            List<ProductOptionRequest.StockUpdate> stockUpdates = cartResponse.getItems().stream()
-                    .map(item -> ProductOptionRequest.StockUpdate.create(
-                            item.getProductId(),
-                            item.getOptionId(),
-                            item.getQuantity()))
-                    .collect(Collectors.toList());
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_ORDER));
 
-            productClient.decreaseStock(stockUpdates);
-            sagaTransactionService.markStockDecreased(sagaId);
-
-            log.info("Stock decreased successfully - sagaId: {}", sagaId);
-
-        } catch (Exception e) {
-            sagaTransactionService.markStockDecreaseFailed(sagaId, e.getMessage());
-            throw new CompensationException("재고 차감 실패: " + e.getMessage());
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new CustomGlobalException(ErrorType.INVALID_ORDER_STATUS);
         }
-    }
 
-    private Order createOrderFromCart(CartOrderRequest request, CartResponse cartResponse) {
-        Order order = Order.builder()
-                .userId(request.getUserId())
-                .status(OrderStatus.PENDING)
-                .address(request.getAddress())
-                .receiverName(request.getReceiverName())
-                .receiverPhone(request.getReceiverPhone())
-                .paymentMethod(request.getPaymentMethod())
-                .paymentStatus("WAITING")
+        order.confirm();
+        log.info("주문 상태 변경 완료 - orderId: {}, status: CONFIRMED", orderId);
+
+        OrderConfirmPayload event = OrderConfirmPayload.builder()
+                .orderId(orderId)
+                .userId(order.getUserId())
                 .build();
 
-        cartResponse.getItems().forEach(cartItem -> {
-            OrderItem orderItem = OrderItem.builder()
-                    .productId(cartItem.getProductId())
-                    .productOptionId(cartItem.getOptionId())
-                    .productName(cartItem.getProductName())
-                    .optionName(cartItem.getOptionSize() + "/" + cartItem.getOptionColor())
-                    .quantity(cartItem.getQuantity())
-                    .unitPrice(cartItem.getPrice())
-                    .totalPrice(cartItem.getTotalPrice())
-                    .build();
-            order.addItem(orderItem);
-        });
+        outboxEventPublisher.publish(EventType.ORDER_CONFIRM, event);
 
-        BigDecimal totalAmount = order.getOrderItems().stream()
-                .map(OrderItem::getTotalPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        order.setTotalAmount(totalAmount);
-
-        return order;
+        log.info("===== 주문 확정 처리 완료 ===== orderId: {}", orderId);
+        return OrderResponse.Confirm.from(order);
     }
 
     @Transactional
-    protected Order createOrder(OrderRequest request, ProductResponse product) {
-        log.info("Creating order - userId: {}", request.getUserId());
+    public OrderResponse.Cancel cancelOrder(Long orderId, Long userId) {
+        log.info("===== 주문 취소 처리 시작 ===== orderId: {}, userId: {}", orderId, userId);
 
-        Order order = Order.create(request);
-        OrderItem orderItem = OrderItem.create(request.getItemRequest(), product);
-        order.addItem(orderItem);
-        order.setTotalAmount(orderItem.getTotalPrice());
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_ORDER));
 
-        Order savedOrder = orderRepository.save(order);
-        log.info("Order created successfully - orderId: {}", savedOrder.getId());
+//        validateOrderExpiration(order);
 
-        return savedOrder;
+        if (order.getStatus() != OrderStatus.PENDING &&
+                order.getStatus() != OrderStatus.CONFIRMED) {
+            throw new CustomGlobalException(ErrorType.INVALID_ORDER_STATUS);
+        }
+
+        OrderStatus currentStatus = order.getStatus();
+        log.info("현재 주문 상태: {} - orderId: {}", currentStatus, orderId);
+
+        if (currentStatus == OrderStatus.PENDING) {
+            cancelPendingOrder(order);
+        } else {
+            cancelConfirmedOrder(order);
+        }
+
+        order.cancel();
+
+        log.info("===== 주문 취소 처리 완료 ===== orderId: {}", orderId);
+        return OrderResponse.Cancel.from(order);
     }
 
-    private void decreaseStock(String sagaId, OrderRequest request) {
+    /**
+     * PENDING 상태 취소 (결제 전)
+     * - 예약만 해제
+     */
+    private void cancelPendingOrder(Order order) {
+        Long orderId = order.getId();
+
         try {
-            ProductOptionRequest.StockUpdate stockUpdate = ProductOptionRequest.StockUpdate.builder()
-                    .productId(request.getItemRequest().getProductId())
-                    .optionId(request.getItemRequest().getProductOptionId())
-                    .quantity(request.getItemRequest().getQuantity())
-                    .build();
+            // 재고 예약 해제
+            productClient.cancelReservation(orderId);
 
-            productClient.decreaseStock(List.of(stockUpdate));
-            sagaTransactionService.markStockDecreased(sagaId);
+            // 쿠폰 예약 해제
+            if (order.getCouponDiscount() > 0) {
+                couponClient.cancelReservation(orderId);
+            }
 
-            log.info("Stock decreased successfully - sagaId: {}", sagaId);
+            // 포인트 예약 해제
+            if (order.getPointDiscount() > 0) {
+                pointClient.cancelReservation(orderId);
+            }
 
         } catch (Exception e) {
-            sagaTransactionService.markStockDecreaseFailed(sagaId, e.getMessage());
-            throw new CompensationException("재고 차감 실패: " + e.getMessage());
+            rollbackOrderPendingCancel(order);
+            throw e;
         }
     }
 
-    private void useCoupon(String sagaId, OrderRequest request, Order order) {
-        if (request.getCouponInfo() == null || request.getCouponInfo().getCouponId() == null) {
-            log.info("Skipping coupon usage - no coupon provided");
-            return;
-        }
-
+    public void rollbackOrderPendingCancel(Order order) {
         try {
-            Long couponId = request.getCouponInfo().getCouponId();
-            CouponResponse.Response coupon = couponClient.getCoupon(couponId, request.getUserId());
+            log.error("PENDING 주문 취소 실패 - orderId: {}", order.getId());
 
-            couponClient.useCoupon(couponId, order.getId());
+            productClient.rollbackReserveStock(order.getId());
 
-            OrderItem orderItem = order.getOrderItems().get(0);
-            BigDecimal discountAmount = couponDiscountCalculator.calculateDiscount(
-                    orderItem.getTotalPrice(),
-                    coupon.getDiscountType(),
-                    BigDecimal.valueOf(coupon.getDiscountValue())
-            );
+            if (order.getCouponDiscount() > 0) {
+                couponClient.rollbackReserveCoupon(order.getId());
+            }
 
-            orderItem.applyCouponDiscount(couponId, discountAmount);
+            if (order.getPointDiscount() > 0) {
+                pointClient.rollbackReservePoints(order.getId());
+            }
+
+            order.fail();
             orderRepository.save(order);
 
-            log.info("Coupon applied to OrderItem - orderId: {}, couponId: {}, discountAmount: {}",
-                    order.getId(), couponId, discountAmount);
-
-            sagaTransactionService.markCouponUsed(sagaId, couponId);
-            log.info("Coupon used successfully - sagaId: {}, couponId: {}", sagaId, couponId);
-
+            throw new CustomGlobalException(ErrorType.ORDER_CANCEL_FAILED);
         } catch (Exception e) {
-            sagaTransactionService.markCouponUseFailed(sagaId, e.getMessage());
-            throw new CompensationException("쿠폰 사용 실패: " + e.getMessage());
-        }
-    }
-
-    private void usePoint(String sagaId, OrderRequest request, Order order) {
-        if (request.getPoint() == null || request.getPoint() <= 0) {
-            log.info("Skipping point usage - no points to use");
-            return;
-        }
-
-        try {
-            pointClient.use(new PointRequest.Use(request.getPoint()));
-
-            order.applyPointDiscount(BigDecimal.valueOf(request.getPoint()));
-            orderRepository.save(order);
-
-            sagaTransactionService.markPointUsed(sagaId, request.getPoint());
-            log.info("Points used successfully - sagaId: {}, amount: {}P", sagaId, request.getPoint());
-
-        } catch (Exception e) {
-            throw new CompensationException("포인트 사용 실패: " + e.getMessage());
+            compensationRegistryJpaRepository.save(new CompensationRegistry(
+                    order.getId(), CompensationRegistry.CompensationType.ORDER_CANCEL_PENDING));
+            throw e;
         }
     }
 
     /**
-     * 주문 실패 처리 - 보상 트랜잭션은 CompensationService에 위임
+     * CONFIRMED 상태 취소 (결제 후)
+     * - 확정 차감 복구
      */
-    private void handleOrderFailure(String sagaId, Order order, Exception e) {
-        // 실패 상태 저장
-        sagaTransactionService.markFailed(sagaId, e.getMessage());
+    private void cancelConfirmedOrder(Order order) {
+        Long orderId = order.getId();
 
-        // 보상 트랜잭션 실행 (CompensationService에 위임)
-        compensationService.executeCompensation(sagaId);
+        try {
+            productClient.rollbackConfirmStock(orderId);
 
-        // 주문 취소 처리
-        if (order != null) {
-            markOrderAsCancelled(order.getId());
+            if (order.getCouponDiscount() > 0) {
+                couponClient.rollbackConfirmCoupon(orderId);
+            }
+
+            if (order.getPointDiscount() > 0) {
+                pointClient.rollbackConfirmPoints(orderId);
+            }
+
+            // TODO: PG사 환불
+            // paymentClient.refund(orderId);
+
+        } catch (Exception e) {
+            rollbackOrderConfirmCancel(order);
+            throw e;
         }
     }
 
+    public void rollbackOrderConfirmCancel(Order order) {
+        try {
+            log.error("CONFIRMED 주문 취소 실패 - orderId: {}", order.getId());
+
+            productClient.confirmStock(order.getId());
+
+            if (order.getCouponDiscount() > 0) {
+                couponClient.confirmCoupon(order.getId());
+            }
+
+            if (order.getPointDiscount() > 0) {
+                pointClient.confirmPoints(order.getId());
+            }
+
+            order.fail();
+            orderRepository.save(order);
+
+            throw new CustomGlobalException(ErrorType.ORDER_CANCEL_FAILED);
+
+        } catch (Exception e) {
+            compensationRegistryJpaRepository.save(new CompensationRegistry(
+                    order.getId(), CompensationRegistry.CompensationType.ORDER_CANCEL_CONFIRMED));
+            throw e;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse.Detail getOrder(Long orderId, Long userId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_ORDER));
+
+        validateOrderOwnership(order, userId);
+
+        return OrderResponse.Detail.from(order);
+    }
+
     @Transactional
-    private void markOrderAsCancelled(Long orderId) {
-        Order order = getOrderById(orderId);
-        order.setStatus(OrderStatus.CANCELLED);
-        orderRepository.save(order);
-        log.info("Order marked as cancelled - orderId: {}", orderId);
+    public void cancelExpiredOrder(Long orderId) {
+        log.info("===== 만료 주문 자동 취소 시작 ===== orderId: {}", orderId);
+
+        try {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_ORDER));
+
+            if (order.getStatus() != OrderStatus.PENDING) {
+                log.warn("이미 처리된 주문 - orderId: {}, status: {}", orderId, order.getStatus());
+                return;
+            }
+
+            order.cancel();
+            orderRepository.save(order);
+
+            orderEventProducer.sendStockCancelEvent(orderId);
+            orderEventProducer.sendCouponCancelEvent(orderId);
+            orderEventProducer.sendPointCancelEvent(orderId, order.getUserId());
+
+            log.info("===== 만료 주문 자동 취소 완료 ===== orderId: {}", orderId);
+
+        } catch (Exception e) {
+            log.error("만료 주문 취소 실패 - orderId: {}", orderId, e);
+            throw e;
+        }
+    }
+
+    private List<OrderItemInfo> calculateOrderItemsFromCart(List<CartItemRedis> cartItems) {
+        List<OrderItemInfo> orderItemInfos = new ArrayList<>();
+
+        for (CartItemRedis cartItem : cartItems) {
+            ProductResponse product = productClient.read(cartItem.getProductId());
+            ProductOptionDto option = productClient.getProductOption(cartItem.getProductOptionId());
+
+            int itemPrice = product.getPrice().intValue() + option.getAdditionalPrice().intValue();
+            int itemTotalPrice = itemPrice * cartItem.getQuantity();
+
+            Integer couponDiscount = cartItem.getCouponDiscount() != null ? cartItem.getCouponDiscount() : 0;
+
+            OrderItemInfo itemInfo = OrderItemInfo.builder()
+                    .productId(cartItem.getProductId())
+                    .productOptionId(cartItem.getProductOptionId())
+                    .quantity(cartItem.getQuantity())
+                    .price(itemPrice)
+                    .totalPrice(itemTotalPrice)
+                    .couponId(cartItem.getAppliedCouponId())
+                    .couponDiscount(couponDiscount)
+                    .build();
+
+            orderItemInfos.add(itemInfo);
+        }
+
+        return orderItemInfos;
+    }
+
+    private Order createPendingOrder(
+            Long userId,
+            int totalAmount,
+            List<OrderItemInfo> orderItemInfos,
+            OrderRequest.Create request
+    ) {
+        Order order = Order.create(userId, totalAmount, 0, 0, totalAmount);
+
+        order.setAddress(request.getAddress());
+        order.setReceiverName(request.getReceiverName());
+        order.setReceiverPhone(request.getReceiverPhone());
+        order.setPaymentMethod(request.getPaymentMethod());
+
+        for (OrderItemInfo itemInfo : orderItemInfos) {
+            OrderItem orderItem = OrderItem.create(
+                    order,
+                    itemInfo.getProductId(),
+                    itemInfo.getProductOptionId(),
+                    itemInfo.getQuantity(),
+                    itemInfo.getPrice(),
+                    itemInfo.getCouponId(),
+                    itemInfo.getCouponDiscount()
+            );
+            order.addItem(orderItem);
+        }
+
+        return orderRepository.save(order);
+    }
+
+    private void reserveStock(Order order) {
+
+        List<StockReserveRequest.OrderItem> items = order.getOrderItems().stream()
+                .map(item -> StockReserveRequest.OrderItem.builder()
+                        .productOptionId(item.getProductOptionId())
+                        .quantity(item.getQuantity())
+                        .build())
+                .toList();
+
+        StockReserveRequest request = StockReserveRequest.builder()
+                .orderId(order.getId())
+                .items(items)
+                .build();
+
+        productClient.reserveStock(request);
+        log.info("재고 예약 성공 - orderId: {}", order.getId());
+    }
+
+    private int reserveCoupons(Order order) {
+
+        List<CouponReserveRequest.CouponItem> couponItems = order.getOrderItems().stream()
+                .filter(item -> item.getCouponId() != null)
+                .map(item -> CouponReserveRequest.CouponItem.builder()
+                        .couponId(item.getCouponId())
+                        .productOptionId(item.getProductOptionId())
+                        .productPrice(item.getTotalPrice())
+                        .build())
+                .toList();
+
+        if (couponItems.isEmpty()) {
+            log.info("쿠폰 사용 없음 - orderId: {}", order.getId());
+            return 0;
+        }
+
+        CouponReserveRequest request = CouponReserveRequest.builder()
+                .orderId(order.getId())
+                .userId(order.getUserId())
+                .couponItems(couponItems)
+                .build();
+
+        CouponReserveResponse response = couponClient.reserveCoupon(request);
+        log.info("쿠폰 예약 성공 - orderId: {}, discount: {}", order.getId(), response.totalDiscount());
+
+        return response.totalDiscount();
+    }
+
+    private int reservePoint(Long userId, Order order, Integer usePoint) {
+        int pointDiscount = usePoint != null ? usePoint : 0;
+
+        if (pointDiscount <= 0) {
+            log.info("포인트 사용 없음 - orderId: {}", order.getId());
+            return 0;
+        }
+
+        PointReserveRequest request = PointReserveRequest.builder()
+                .orderId(order.getId())
+                .userId(userId)
+                .amount((long) pointDiscount)
+                .build();
+
+        pointClient.reservePoints(request);
+        log.info("포인트 예약 성공 - orderId: {}, point: {}", order.getId(), pointDiscount);
+
+        return pointDiscount;
+    }
+
+    private void validateOrderExpiration(Order order) {
+        if (order.getExpiresAt().isBefore(LocalDateTime.now())) {
+            log.warn("주문 만료 - orderId: {}", order.getId());
+            order.cancel();
+            orderRepository.save(order);
+
+            orderEventProducer.sendStockCancelEvent(order.getId());
+            orderEventProducer.sendCouponCancelEvent(order.getId());
+            orderEventProducer.sendPointCancelEvent(order.getId(), order.getUserId());
+
+            throw new CustomGlobalException(ErrorType.ORDER_EXPIRED);
+        }
+    }
+
+    private void validateOrderOwnership(Order order, Long userId) {
+        if (!order.getUserId().equals(userId)) {
+            throw new CustomGlobalException(ErrorType.UNAUTHORIZED_ORDER_ACCESS);
+        }
     }
 
     private Order getOrderById(Long orderId) {

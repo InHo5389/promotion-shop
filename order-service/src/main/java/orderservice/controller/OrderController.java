@@ -3,14 +3,10 @@ package orderservice.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import orderservice.service.dto.CartOrderRequest;
-import orderservice.service.dto.OrderRequest;
-import orderservice.service.dto.OrderResponse;
+import orderservice.service.dto.request.OrderRequest;
+import orderservice.service.dto.response.OrderResponse;
 import orderservice.service.v1.OrderService;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController("orderControllerV3")
@@ -21,19 +17,31 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping
-    public OrderResponse order(@Valid @RequestBody OrderRequest request) {
-        log.info("Creating order for user: {}", request.getUserId());
-        return orderService.order(request);
+    public OrderResponse.Create createCartOrder(
+            @RequestHeader("X-USER-ID") Long userId,
+            @Valid @RequestBody OrderRequest.Create request
+    ) {
+        return orderService.createOrderFromCart(userId, request);
     }
 
-    @PostMapping("/cancel")
-    public OrderResponse cancel(@Valid @RequestBody OrderRequest.Cancel request) {
-        log.info("Cancel order for user: {}", request.getUserId());
-        return orderService.cancel(request.getOrderId(), request.getUserId());
+    @PostMapping("/{orderId}/process")
+    public void confirmOrder(@PathVariable Long orderId) {
+        orderService.confirmOrder(orderId);
     }
 
-    @PostMapping("/cart")
-    public OrderResponse cartOrder(@Valid @RequestBody CartOrderRequest request) {
-        return orderService.cartOrder(request);
+    @PostMapping("/{orderId}/cancel")
+    public OrderResponse.Cancel cancelOrder(
+            @PathVariable Long orderId,
+            @RequestHeader("X-USER-ID") Long userId
+    ) {
+        return orderService.cancelOrder(orderId, userId);
+    }
+
+    @GetMapping("/{orderId}")
+    public OrderResponse.Detail getOrder(
+            @PathVariable Long orderId,
+            @RequestHeader("X-USER-ID") Long userId
+    ) {
+        return orderService.getOrder(orderId, userId);
     }
 }
