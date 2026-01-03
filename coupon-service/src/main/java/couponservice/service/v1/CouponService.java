@@ -44,16 +44,16 @@ public class CouponService {
         return couponRepository.save(coupon);
     }
 
-    @Transactional
-    public Coupon use(Long couponId, Long orderId) {
-        Long currentUserId = UserIdInterceptor.getCurrentUserId();
-
-        Coupon coupon = couponRepository.findByIdAndUserId(couponId, currentUserId)
-                .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_COUPON));
-
-        coupon.use(orderId);
-        return coupon;
-    }
+//    @Transactional
+//    public Coupon use(Long couponId, Long orderId) {
+//        Long currentUserId = UserIdInterceptor.getCurrentUserId();
+//
+//        Coupon coupon = couponRepository.findByIdAndUserId(couponId, currentUserId)
+//                .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_COUPON));
+//
+//        coupon.use(orderId);
+//        return coupon;
+//    }
 
     @Transactional
     public Coupon cancel(Long couponId) {

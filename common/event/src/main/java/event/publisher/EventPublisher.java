@@ -17,7 +17,7 @@ public class EventPublisher {
         return System.currentTimeMillis();
     }
 
-    public void publishEvent(EventType eventType, EventPayload payload, String topic) {
+    public void publish(EventType eventType, EventPayload payload, String topic) {
         Event<EventPayload> event = Event.of(generateEventId(), eventType, payload);
         String eventJson = event.toJson();
         log.info("Event published: id={}, type={}, topic={}", event.getEventId(), eventType, topic);

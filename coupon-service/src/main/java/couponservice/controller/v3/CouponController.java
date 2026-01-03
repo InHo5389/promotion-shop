@@ -3,6 +3,9 @@ package couponservice.controller.v3;
 import couponservice.service.dto.v1.CouponRequest;
 import couponservice.service.dto.v1.CouponResponse;
 import couponservice.service.v3.CouponService;
+import couponservice.service.v3.dto.CouponReserveRequest;
+import couponservice.service.v3.dto.CouponReserveResponse;
+import couponservice.service.v3.dto.CouponValidationResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,12 +22,33 @@ public class CouponController {
         return ResponseEntity.accepted().build();
     }
 
-    @PostMapping("/{couponId}/use/{orderId}")
-    public ResponseEntity<CouponResponse.Response> useCoupon(
-            @PathVariable Long couponId,
-            @PathVariable Long orderId
-    ) {
-        return ResponseEntity.ok(couponService.use(couponId, orderId));
+    @PostMapping("/reserve")
+    public ResponseEntity<CouponReserveResponse> reserveCoupon(@RequestBody CouponReserveRequest request) {
+        return ResponseEntity.ok(couponService.reserveCoupons(request));
+    }
+
+    @PostMapping("/confirm/{orderId}")
+    public ResponseEntity<Void> confirm(@PathVariable Long orderId) {
+        couponService.confirmReservation(orderId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/cancel/{orderId}")
+    public ResponseEntity<Void> cancelReservation(@PathVariable Long orderId) {
+        couponService.cancelReservation(orderId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/rollback/reserve/{orderId}")
+    public ResponseEntity<Void> rollbackReserveCoupon(@PathVariable Long orderId) {
+        couponService.rollbackReservation(orderId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/rollback/confirm/{orderId}")
+    public ResponseEntity<Void> rollbackConfirmCoupon(@PathVariable Long orderId) {
+        couponService.rollbackConfirmation(orderId);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{couponId}/cancel")
@@ -33,7 +57,15 @@ public class CouponController {
     }
 
     @GetMapping("/{couponId}/{userId}")
-    public CouponResponse.Response getCoupon(@PathVariable Long couponId,@PathVariable Long userId){
-        return couponService.getCoupon(couponId,userId);
+    public CouponResponse.Response getCoupon(@PathVariable Long couponId, @PathVariable Long userId) {
+        return couponService.getCoupon(couponId, userId);
+    }
+
+    @GetMapping("/{couponId}/validate")
+    public ResponseEntity<CouponValidationResponse> validateCoupon(
+            @PathVariable Long couponId,
+            @RequestParam Long userId
+    ) {
+        return ResponseEntity.ok(couponService.validateCoupon(couponId, userId));
     }
 }

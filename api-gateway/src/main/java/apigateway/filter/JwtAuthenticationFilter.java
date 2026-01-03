@@ -73,12 +73,13 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
      * 추후 백엔드 컴포넌트 X-USER_ID헤더에 userId를 넣어줌
      */
     private Mono<Void> proceedWithUserInfo(Map<String, Object> userInfo, ServerWebExchange exchange, GatewayFilterChain chain) {
-        exchange.getRequest().mutate()
-                .header("X-USER-ID", userInfo.get("id").toString())
-                .header("X-USER-ROLE", userInfo.get("role").toString())
+        ServerWebExchange modifiedExchange = exchange.mutate()
+                .request(exchange.getRequest().mutate()
+                        .header("X-USER-ID", userInfo.get("id").toString())
+                        .header("X-USER-ROLE", userInfo.get("role").toString())
+                        .build())
                 .build();
-
-        return chain.filter(exchange);
+        return chain.filter(modifiedExchange);
     }
 
     public static class Config {

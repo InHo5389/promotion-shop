@@ -64,8 +64,13 @@ public class ProductController {
         productService.cancelReservation(orderId);
     }
 
-    @PostMapping("/rollback/{orderId}")
-    public void rollback(@PathVariable Long orderId) {
+    @PostMapping("/rollback/reserve/{orderId}")
+    public void rollbackReservation(@PathVariable Long orderId) {
+        productService.rollbackReservation(orderId);
+    }
+
+    @PostMapping("/rollback/confirm/{orderId}")
+    public void rollbackConfirmation(@PathVariable Long orderId) {
         productService.rollbackConfirmation(orderId);
     }
 
@@ -95,5 +100,10 @@ public class ProductController {
             @RequestParam(defaultValue = "20") int pageSize) {
 
         return productSearchService.searchElasticsearchProducts(keyword, lastId, pageSize);
+    }
+
+    @GetMapping("/options/{id}")
+    ProductOptionDto getProductOption(@PathVariable Long id){
+        return productService.getProductOption(id);
     }
 }

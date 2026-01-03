@@ -37,14 +37,18 @@ public class OutboxEventPublisher {
         }
     }
 
-    public void publish(EventType type, EventPayload payload) {
-        log.info("Publishing event: type={}, payload={}", type, payload);
-        Outbox outbox = Outbox.create(
-                type.getTopic(),
-                Event.of(System.currentTimeMillis(), type, payload).toJson()
+    public void publish(EventType eventType, EventPayload payload) {
+        log.info("Publishing event: eventType={}, payload={}", eventType, payload);
+
+        Event<EventPayload> event = Event.of(
+                System.currentTimeMillis(),
+                eventType,
+                payload
         );
-        log.info("Created outbox: {}", outbox);
+
+        Outbox outbox = Outbox.create(eventType.getTopic(), event.toJson());
+
         applicationEventPublisher.publishEvent(OutboxEvent.of(outbox));
-        log.info("Event published to Spring context");
+        log.info("[OutboxEventPublisher.publish] Outbox event published: topic={}", eventType.getTopic());
     }
 }

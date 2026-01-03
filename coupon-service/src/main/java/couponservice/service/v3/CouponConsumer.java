@@ -1,11 +1,6 @@
 package couponservice.service.v3;
 
 import couponservice.service.dto.v3.CouponDto;
-import event.Event;
-import event.EventPayload;
-import event.EventType;
-import event.payload.CouponAppliedEventPayload;
-import event.payload.CouponCanceledEventPayload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -30,50 +25,6 @@ public class CouponConsumer {
             couponService.issue(message);
         } catch (Exception e) {
             log.error("Failed to process coupon issue request: {}", e.getMessage(), e);
-        }
-    }
-
-    @KafkaListener(
-            topics = EventType.Topic.COUPON_APPLIED,
-            groupId = "coupon-applied-consumer")
-    public void consumeCouponApplied(String message) {
-        log.info("[CouponConsumer.consumeCouponApplied()] Received message: {}", message);
-        Event<EventPayload> event = Event.fromJson(message);
-
-        CouponAppliedEventPayload payload = (CouponAppliedEventPayload) event.getPayload();
-        log.info("Processing coupon applied - orderId: {}, couponId: {}", payload.getOrderId(), payload.getCouponId());
-
-        try {
-            couponService.use(payload.getCouponId(), payload.getOrderId());
-            log.info("Coupon applied successfully for orderId: {}, couponId: {}", payload.getOrderId(), payload.getCouponId());
-        } catch (Exception e) {
-            log.error("Failed to coupon applied for orderId: {}, couponId: {}", payload.getOrderId(), payload.getCouponId(), e);
-        }
-    }
-
-    @KafkaListener(
-            topics = EventType.Topic.COUPON_CANCELED,
-            groupId = "coupon-canceled-consumer")
-    public void consumeCouponCanceled(String message) {
-        log.info("[CouponConsumer.consumeCouponCanceled()] Received message: {}", message);
-        Event<EventPayload> event = Event.fromJson(message);
-
-        CouponCanceledEventPayload payload = (CouponCanceledEventPayload) event.getPayload();
-        log.info("Processing coupon canceled - orderId: {}, couponId: {}", payload.getOrderId(), payload.getCouponId());
-
-        try {
-            if (payload.getCouponInfos() != null && !payload.getCouponInfos().isEmpty()) {
-                for (CouponCanceledEventPayload.CouponInfo couponInfo : payload.getCouponInfos()) {
-                    if (couponInfo.getCouponId() != null) {
-                        couponService.cancel(couponInfo.getCouponId());
-                        log.info("Coupon canceled successfully for orderId: {}, couponId: {}",
-                                payload.getOrderId(), couponInfo.getCouponId());
-                    }
-                }
-            }
-            log.info("Coupon applied successfully for orderId: {}, couponId: {}", payload.getOrderId(), payload.getCouponId());
-        } catch (Exception e) {
-            log.error("Failed to coupon canceled for orderId: {}, couponId: {}", payload.getOrderId(), payload.getCouponId(), e);
         }
     }
 }

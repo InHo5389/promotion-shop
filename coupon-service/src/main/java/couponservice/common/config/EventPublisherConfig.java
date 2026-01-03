@@ -18,7 +18,7 @@ public class EventPublisherConfig {
     private final ObjectMapper objectMapper;
 
     @Bean
-    public EventPublisher eventPublisher(@Qualifier("stringKafkaTemplate") KafkaTemplate<String, String> kafkaTemplate) {
+    public EventPublisher eventPublisher(KafkaTemplate<String, String> kafkaTemplate) {
         return new EventPublisher(kafkaTemplate);
     }
 

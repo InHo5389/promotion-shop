@@ -18,7 +18,11 @@ public enum ErrorType {
 
     NOT_FOUND_X_USER_ID_HEADER(400, "헤더가 비어있거나 NULL입니다."),
     PRODUCT_OPTION_NOT_FOUND(400, "제품 옵션을 찾을 수 없습니다"),
-    INVALID_POINT_AMOUNT(400, "포인트는 10원 단위로 사용할 수 없습니다");
+    INVALID_POINT_AMOUNT(400, "포인트는 10원 단위로 사용할 수 없습니다"),
+    ALREADY_PROCESSED_ORDER(400, "이미 처리된 주문입니다."),
+    NOT_FOUND_RESERVE_POINT(400,"예약된 포인트가 없습니다"),
+    INVALID_POINT_RESERVATION(400,"예약 재고가 부족합니다. 유효하지 않은 확정입니다."),
+    POINT_CONFIRMATION_NOT_FOUND(400,"확정된 포인트를 찾을 수 없습니다." );
 
     private final int status;
     private final String message;

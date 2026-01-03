@@ -68,28 +68,21 @@ public class ProductService {
     @Transactional
     public void reserveStock(StockReserveRequest request) {
         Long orderId = request.orderId();
-        List<StockReserveRequest.OrderItem> items = request.items();
 
-        log.info("재고 예약 시작 - orderId: {}", orderId);
+        log.info("===== 재고 예약 시작 ===== orderId: {}", orderId);
 
         // 중복 체크: 이미 처리된 주문인지 확인
-        List<ProductTransactionHistory> existingHistories = productTransactionJpaRepository.findByOrderIdAndType(
-                orderId, TransactionType.RESERVE);
+        List<ProductTransactionHistory> existingHistories =
+                productTransactionJpaRepository.findByOrderIdAndType(orderId, TransactionType.RESERVE);
 
         if (!existingHistories.isEmpty()) {
-            log.info("재고 예약  스킵 - 이미 처리됨, orderId: {}", orderId);
-//            throw new CustomGlobalException(ErrorType.ALREADY_PROCESSED_ORDER);
+            log.warn("이미 재고가 예약된 주문 - orderId: {}", orderId);
             return;
         }
 
-        for (StockReserveRequest.OrderItem item : items) {
-            ProductOption productOption = productOptionJpaRepository.findById(item.productOptionId())
-                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT_OPTION));
-
-            ProductStock stock = productOption.getStock();
-            if (stock == null) {
-                throw new CustomGlobalException(ErrorType.NOT_FOUND_STOCK);
-            }
+        for (StockReserveRequest.OrderItem item : request.items()) {
+            ProductStock stock = productStockJpaRepository.findByProductOptionId(item.productOptionId())
+                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_STOCK));
 
             stock.reserve(item.quantity());
 
@@ -108,12 +101,14 @@ public class ProductService {
 
     @Transactional
     public void confirmReservation(Long orderId) {
-        // 멱등성: 이미 확정했는지 체크
+        log.info("===== 재고 확정 시작 ===== orderId: {}", orderId);
+
+        // 멱등성 체크: 이미 확정된 주문인지 확인
         List<ProductTransactionHistory> confirmHistories =
                 productTransactionJpaRepository.findByOrderIdAndType(orderId, TransactionType.CONFIRM_RESERVE);
 
         if (!confirmHistories.isEmpty()) {
-            log.info("재고 확정 스킵 - 이미 처리됨, orderId: {}", orderId);
+            log.warn("이미 재고가 확정된 주문 - orderId: {}", orderId);
             return;
         }
 
@@ -127,11 +122,11 @@ public class ProductService {
         }
 
         for (ProductTransactionHistory history : reserveHistories) {
-            ProductOption productOption = productOptionJpaRepository.findById(history.getProductOptionId())
-                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT_OPTION));
+            ProductStock stock = productStockJpaRepository.findByProductOptionId(history.getProductOptionId())
+                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_STOCK));
 
             // 예약 확정 (실제 차감)
-            productOption.getStock().confirmReservation(history.getQuantity());
+            stock.confirmReservation(history.getQuantity());
 
             // 확정 이력 저장
             ProductTransactionHistory confirmHistory = ProductTransactionHistory.create(
@@ -147,16 +142,17 @@ public class ProductService {
         }
     }
 
-    // ⭐ 예약 취소 (멱등성)
     @Transactional
     public void cancelReservation(Long orderId) {
-        // 멱등성: 이미 취소했는지 체크
+        log.info("===== 재고 예약 취소 시작 ===== orderId: {}", orderId);
+
+        // 멱등성 체크: 이미 취소된 주문인지 확인
         List<ProductTransactionHistory> cancelHistories =
                 productTransactionJpaRepository.findByOrderIdAndType(orderId, TransactionType.CANCEL_RESERVE);
 
         if (!cancelHistories.isEmpty()) {
             log.info("재고 취소 스킵 - 이미 처리됨, orderId: {}", orderId);
-            return;
+            return; // 예약이 없으면 취소할 것도 없음
         }
 
         List<ProductTransactionHistory> reserveHistories =
@@ -167,33 +163,37 @@ public class ProductService {
             return;
         }
 
-        for (ProductTransactionHistory history : reserveHistories) {
-            ProductOption productOption = productOptionJpaRepository.findById(history.getProductOptionId())
-                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT_OPTION));
+        for (ProductTransactionHistory reserveHistory : reserveHistories) {
+            ProductStock stock = productStockJpaRepository.findByProductOptionId(reserveHistory.getProductOptionId())
+                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_STOCK));
 
             // 예약 취소
-            productOption.getStock().cancelReservation(history.getQuantity());
+            stock.cancelReservation(reserveHistory.getQuantity());
 
             // 취소 이력 저장
             ProductTransactionHistory cancelHistory = ProductTransactionHistory.create(
                     orderId,
-                    history.getProductOptionId(),
-                    history.getQuantity(),
+                    reserveHistory.getProductOptionId(),
+                    reserveHistory.getQuantity(),
                     TransactionType.CANCEL_RESERVE
             );
             productTransactionJpaRepository.save(cancelHistory);
 
             log.info("재고 취소 완료 - orderId: {}, productOptionId: {}",
-                    orderId, history.getProductOptionId());
+                    orderId, reserveHistory.getProductOptionId());
         }
     }
 
     @Transactional
     public void rollbackConfirmation(Long orderId) {
+        log.info("===== 재고 확정 롤백 시작 ===== orderId: {}", orderId);
+
+        // 멱등성 체크: 이미 롤백된 주문인지 확인
         List<ProductTransactionHistory> rollbackHistories =
                 productTransactionJpaRepository.findByOrderIdAndType(orderId, TransactionType.ROLLBACK_CONFIRM);
+
         if (!rollbackHistories.isEmpty()) {
-            log.info("재고 취소 스킵 - 이미 처리됨, orderId: {}", orderId);
+            log.warn("이미 재고 확정이 롤백된 주문 - orderId: {}", orderId);
             return;
         }
 
@@ -201,8 +201,8 @@ public class ProductService {
                 productTransactionJpaRepository.findByOrderIdAndType(orderId, TransactionType.CONFIRM_RESERVE);
 
         if (confirmHistories.isEmpty()) {
-            log.warn("롤백할 확정 이력이 없습니다. orderId: {}", orderId);
-            return;
+            log.warn("재고 확정 히스토리 없음 - orderId: {}", orderId);
+            throw new CustomGlobalException(ErrorType.STOCK_CONFIRMATION_NOT_FOUND);
         }
 
         for (ProductTransactionHistory history : confirmHistories) {
@@ -216,9 +216,55 @@ public class ProductService {
                     orderId,
                     history.getProductOptionId(),
                     history.getQuantity(),
-                    TransactionType.CANCEL_RESERVE
+                    TransactionType.ROLLBACK_CONFIRM
             );
             productTransactionJpaRepository.save(cancelHistory);
+
+            log.info("재고 확정 롤백 완료 - orderId: {}, optionId: {}, quantity: {}",
+                    orderId, history.getProductOptionId(), history.getQuantity());
+        }
+
+        log.info("재고 확정 롤백 완료. orderId: {}", orderId);
+    }
+
+    @Transactional
+    public void rollbackReservation(Long orderId) {
+        log.info("===== 재고 예약 롤백 시작 ===== orderId: {}", orderId);
+
+        // 멱등성 체크: 이미 롤백된 주문인지 확인
+        List<ProductTransactionHistory> rollbackHistories =
+                productTransactionJpaRepository.findByOrderIdAndType(orderId, TransactionType.ROLLBACK_RESERVE);
+
+        if (!rollbackHistories.isEmpty()) {
+            log.warn("이미 재고 확정이 롤백된 주문 - orderId: {}", orderId);
+            return;
+        }
+
+        List<ProductTransactionHistory> cancelReserveHistories =
+                productTransactionJpaRepository.findByOrderIdAndType(orderId, TransactionType.CANCEL_RESERVE);
+
+        if (cancelReserveHistories.isEmpty()) {
+            log.warn("재고 예약 취소 히스토리 없음 - orderId: {}", orderId);
+            throw new CustomGlobalException(ErrorType.STOCK_CONFIRMATION_NOT_FOUND);
+        }
+
+        for (ProductTransactionHistory history : cancelReserveHistories) {
+            ProductStock stock = productStockJpaRepository.findByProductOptionId(history.getProductOptionId())
+                    .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_STOCK));
+
+            // Confirm 상태를 Reserve로 되돌림
+            stock.rollbackReservation(history.getQuantity());
+
+            ProductTransactionHistory cancelHistory = ProductTransactionHistory.create(
+                    orderId,
+                    history.getProductOptionId(),
+                    history.getQuantity(),
+                    TransactionType.ROLLBACK_RESERVE
+            );
+            productTransactionJpaRepository.save(cancelHistory);
+
+            log.info("재고 확정 롤백 완료 - orderId: {}, optionId: {}, quantity: {}",
+                    orderId, history.getProductOptionId(), history.getQuantity());
         }
 
         log.info("재고 확정 롤백 완료. orderId: {}", orderId);
@@ -304,4 +350,11 @@ public class ProductService {
                 .map(ProductResponse::from)
                 .collect(Collectors.toList());
     }
+
+    public ProductOptionDto getProductOption(Long productOptionId){
+        ProductOption productOption = productOptionJpaRepository.findById(productOptionId)
+                .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_PRODUCT_OPTION));
+        return ProductOptionDto.from(productOption);
+    }
+
 }

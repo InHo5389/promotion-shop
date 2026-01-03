@@ -68,16 +68,16 @@ public class CouponService {
         }
     }
 
-    @Transactional
-    public CouponResponse.Response use(Long couponId, Long orderId) {
-        Coupon coupon = couponRepository.findByIdWithPolicyForUpdate(couponId)
-                .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_COUPON));
-        coupon.use(orderId);
-
-        couponRedisRepository.updateCouponState(coupon);
-
-        return CouponResponse.Response.from(coupon);
-    }
+//    @Transactional
+//    public CouponResponse.Response use(Long couponId, Long orderId) {
+//        Coupon coupon = couponRepository.findByIdWithPolicyForUpdate(couponId)
+//                .orElseThrow(() -> new CustomGlobalException(ErrorType.NOT_FOUND_COUPON));
+//        coupon.use(orderId);
+//
+//        couponRedisRepository.updateCouponState(coupon);
+//
+//        return CouponResponse.Response.from(coupon);
+//    }
 
     @Transactional
     public CouponResponse.Response cancel(Long couponId) {
