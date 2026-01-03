@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,7 +23,6 @@ public class RoleAuthorizationFilter extends AbstractGatewayFilterFactory<RoleAu
             String userRole = exchange.getRequest().getHeaders().getFirst(HEADER_ROLE_NAME);
 
             if (userRole == null) {
-                exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return ErrorResponseUtil.createUnauthorizedResponse(exchange, ErrorType.NOT_FOUND_HEADER);
             }
 
