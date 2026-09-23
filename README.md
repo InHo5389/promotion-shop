@@ -29,68 +29,6 @@
 ## 📊 ERD
 ![Image](https://github.com/user-attachments/assets/97ad6acb-36a3-4f8d-89db-8a2fea2ffbc1)
 
-## 📋 API 문서
-
-### 쿠폰 서비스 (Coupon Service)
-
-**쿠폰 API**
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v3/coupons` | 쿠폰 발급 요청 |
-| POST | `/api/v3/coupons/{couponId}/use` | 쿠폰 사용 |
-| POST | `/api/v3/coupons/{couponId}/cancel` | 쿠폰 사용 취소 |
-
-**쿠폰 정책 API**
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v3/coupon-policies` | 쿠폰 정책 생성 |
-| GET | `/api/v3/coupon-policies/{id}` | 쿠폰 정책 상세 조회 |
-| GET | `/api/v3/coupon-policies` | 모든 쿠폰 정책 목록 조회 |
-
-### 주문 서비스 (Order Service)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v3/orders` | 주문 생성 |
-| POST | `/api/v3/orders/cancel` | 주문 취소 |
-| POST | `/api/v3/orders/cart` | 장바구니 주문 |
-
-### 포인트 서비스 (Point Service)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v2/points/earn` | 포인트 적립 |
-| POST | `/api/v2/points/use` | 포인트 사용 |
-| POST | `/api/v2/points/{pointId}/cancel` | 포인트 사용 취소 |
-| GET | `/api/v2/points/users/{userId}/balance` | 사용자 포인트 잔액 조회 |
-| GET | `/api/v2/points/users/{userId}/history` | 사용자 포인트 사용 내역 조회 |
-
-### 사용자 서비스 (User Service)
-
-**인증 API**
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/users/login` | 로그인 |
-| POST | `/api/v1/users/validate-token` | 토큰 유효성 검증 |
-| POST | `/api/v1/users/refresh-token` | 토큰 갱신 |
-
-**사용자 관리 API**
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/users/signup` | 회원가입 |
-| GET | `/api/v1/users/me` | 사용자 프로필 조회 |
-| PUT | `/api/v1/users/me` | 사용자 프로필 수정 |
-| POST | `/api/v1/users/me/password` | 비밀번호 변경 |
-| GET | `/api/v1/users/me/login-history` | 로그인 이력 조회 |
-
-**장바구니 API**
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/carts/{id}` | 장바구니 조회 |
-| POST | `/api/v1/carts` | 장바구니에 상품 추가 |
-| PUT | `/api/v1/carts/product/{originalProductId}/option/{originalOptionId}` | 장바구니 옵션 수정 |
-| DELETE | `/api/v1/carts` | 장바구니 상품 삭제 |
-| DELETE | `/api/v1/carts/{userId}/all` | 장바구니 전체 비우기 |
-
-
 ## 🔍 중점적으로 고민했던 기술 요소와 해결
 
 ### 1. 쿠폰 발급 시스템 3단계 아키텍처 개선을 통한 대용량 트래픽 처리
@@ -189,6 +127,69 @@ Trace ID 기반 로깅을 구현하여 분산 시스템에서 요청의 전체 �
 
 **[성과]**
 Trace ID 기반 분산 시스템 추적으로 MSA 환경에서 서비스 간 요청 흐름을 한 번에 파악할 수 있어 장애 원인 분석 과정을 체계화했습니다. 
+
+## 📋 API 문서
+
+### 쿠폰 서비스 (Coupon Service)
+
+**쿠폰 API**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v3/coupons` | 쿠폰 발급 요청 |
+| POST | `/api/v3/coupons/{couponId}/use` | 쿠폰 사용 |
+| POST | `/api/v3/coupons/{couponId}/cancel` | 쿠폰 사용 취소 |
+
+**쿠폰 정책 API**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v3/coupon-policies` | 쿠폰 정책 생성 |
+| GET | `/api/v3/coupon-policies/{id}` | 쿠폰 정책 상세 조회 |
+| GET | `/api/v3/coupon-policies` | 모든 쿠폰 정책 목록 조회 |
+
+### 주문 서비스 (Order Service)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v3/orders` | 주문 생성 |
+| POST | `/api/v3/orders/cancel` | 주문 취소 |
+| POST | `/api/v3/orders/cart` | 장바구니 주문 |
+
+### 포인트 서비스 (Point Service)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v2/points/earn` | 포인트 적립 |
+| POST | `/api/v2/points/use` | 포인트 사용 |
+| POST | `/api/v2/points/{pointId}/cancel` | 포인트 사용 취소 |
+| GET | `/api/v2/points/users/{userId}/balance` | 사용자 포인트 잔액 조회 |
+| GET | `/api/v2/points/users/{userId}/history` | 사용자 포인트 사용 내역 조회 |
+
+### 사용자 서비스 (User Service)
+
+**인증 API**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/users/login` | 로그인 |
+| POST | `/api/v1/users/validate-token` | 토큰 유효성 검증 |
+| POST | `/api/v1/users/refresh-token` | 토큰 갱신 |
+
+**사용자 관리 API**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/users/signup` | 회원가입 |
+| GET | `/api/v1/users/me` | 사용자 프로필 조회 |
+| PUT | `/api/v1/users/me` | 사용자 프로필 수정 |
+| POST | `/api/v1/users/me/password` | 비밀번호 변경 |
+| GET | `/api/v1/users/me/login-history` | 로그인 이력 조회 |
+
+**장바구니 API**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/carts/{id}` | 장바구니 조회 |
+| POST | `/api/v1/carts` | 장바구니에 상품 추가 |
+| PUT | `/api/v1/carts/product/{originalProductId}/option/{originalOptionId}` | 장바구니 옵션 수정 |
+| DELETE | `/api/v1/carts` | 장바구니 상품 삭제 |
+| DELETE | `/api/v1/carts/{userId}/all` | 장바구니 전체 비우기 |
+
+
 
 
 
